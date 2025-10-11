@@ -1,0 +1,11 @@
+# Example DOI list
+# One DOI per line
+# Lines starting with # are comments and will be ignored
+
+10.1016/j.cell.2013.05.039
+10.1038/nature12234
+10.1126/science.1234567
+10.1073/pnas.1234567890
+
+# You can add more DOIs below
+# Format: 10.xxxx/xxxxxx
