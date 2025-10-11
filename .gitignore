@@ -1,5 +1,8 @@
 # Paper collection output
+# Note: .db files in paper_collection/data are tracked with Git LFS
+# Other .db files are ignored
 *.db
+!paper_collection/data/*.db
 *.pkl
 
 # Python
