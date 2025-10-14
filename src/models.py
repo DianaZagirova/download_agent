@@ -38,6 +38,7 @@ class PaperMetadata:
     # System fields
     collection_date: str = field(default_factory=lambda: datetime.now().isoformat())
     openalex_retrieved: bool = False
+    query_id: Optional[int] = None  # Reference to the query used to collect this paper
     
     # Properties for topic fields
     @property

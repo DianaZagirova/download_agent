@@ -15,7 +15,12 @@ query = """
 
 # Collect only 10 papers for testing
 print("Starting small test collection (10 papers)...")
-collect_papers(query, max_results=10, use_threading=False)
+collect_papers(
+    query=query,
+    max_results=10,
+    use_threading=False,
+    query_description="Test query: Theory of Aging papers from 2024-2025"
+)
 
 print("\n" + "="*60)
 print("Test completed! Check the results:")

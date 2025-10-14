@@ -30,7 +30,12 @@ def example_1_basic_collection():
     """
     
     # Collect papers (limit to 100 for testing)
-    collect_papers(query, max_results=100, use_threading=True)
+    collect_papers(
+        query=query,
+        max_results=100,
+        use_threading=True,
+        query_description="Example 1: Aging/ageing theories and hypotheses (test collection)"
+    )
 
 
 def example_2_database_queries():
@@ -87,7 +92,12 @@ def example_3_custom_query():
     """
     
     # Collect papers
-    collect_papers(query, max_results=500, use_threading=True)
+    collect_papers(
+        query=query,
+        max_results=500,
+        use_threading=True,
+        query_description="Example 3: Machine learning and AI in clinical medicine (2020-2024)"
+    )
 
 
 def example_4_analyze_specific_paper():

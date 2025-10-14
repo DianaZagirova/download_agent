@@ -5,11 +5,12 @@ Uses SQLite for structured storage with JSON export capabilities
 """
 import sqlite3
 import json
+import threading
 from typing import List, Optional, Dict
-from pathlib import Path
+from datetime import datetime
 
 from .models import PaperMetadata, CollectionStats
-from .config import DATABASE_PATH, DATA_DIR
+from .config import DATABASE_PATH
 
 
 class PaperDatabase:
@@ -18,73 +19,88 @@ class PaperDatabase:
     def __init__(self, db_path: str = DATABASE_PATH):
         """Initialize database connection and create tables if needed"""
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
+        # Add thread lock for database operations
+        self._lock = threading.Lock()
         self._create_tables()
     
     def _create_tables(self):
         """Create database tables if they don't exist"""
-        cursor = self.conn.cursor()
-        
-        # Papers table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS papers (
-                pmid TEXT PRIMARY KEY,
-                pmcid TEXT,
-                doi TEXT,
-                title TEXT,
-                abstract TEXT,
-                full_text TEXT,
-                full_text_sections TEXT,
-                mesh_terms TEXT,
-                keywords TEXT,
-                authors TEXT,
-                year TEXT,
-                date_published TEXT,
-                journal TEXT,
-                is_full_text_pmc INTEGER,
-                oa_url TEXT,
-                primary_topic TEXT,
-                topic_name TEXT,
-                topic_subfield TEXT,
-                topic_field TEXT,
-                topic_domain TEXT,
-                citation_normalized_percentile REAL,
-                cited_by_count INTEGER,
-                fwci REAL,
-                collection_date TEXT,
-                openalex_retrieved INTEGER
-            )
-        """)
-        
-        # Collection runs table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS collection_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                query TEXT,
-                total_found INTEGER,
-                total_processed INTEGER,
-                with_full_text INTEGER,
-                without_full_text INTEGER,
-                with_openalex INTEGER,
-                failed_pubmed INTEGER,
-                failed_openalex INTEGER,
-                start_time TEXT,
-                end_time TEXT
-            )
-        """)
-        
-        # Failed DOIs table (for papers without PMC full text)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS failed_dois (
-                doi TEXT PRIMARY KEY,
-                pmid TEXT,
-                reason TEXT,
-                timestamp TEXT
-            )
-        """)
-        
-        self.conn.commit()
+        with self._lock:
+            cursor = self.conn.cursor()
+            
+            # Queries table (must be created first due to foreign key)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS queries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    query_text TEXT NOT NULL,
+                    description TEXT,
+                    created_date TEXT NOT NULL
+                )
+            """)
+            
+            # Papers table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS papers (
+                    pmid TEXT PRIMARY KEY,
+                    pmcid TEXT,
+                    doi TEXT,
+                    title TEXT,
+                    abstract TEXT,
+                    full_text TEXT,
+                    full_text_sections TEXT,
+                    mesh_terms TEXT,
+                    keywords TEXT,
+                    authors TEXT,
+                    year TEXT,
+                    date_published TEXT,
+                    journal TEXT,
+                    is_full_text_pmc INTEGER,
+                    oa_url TEXT,
+                    primary_topic TEXT,
+                    topic_name TEXT,
+                    topic_subfield TEXT,
+                    topic_field TEXT,
+                    topic_domain TEXT,
+                    citation_normalized_percentile REAL,
+                    cited_by_count INTEGER,
+                    fwci REAL,
+                    collection_date TEXT,
+                    openalex_retrieved INTEGER,
+                    parsing_status TEXT,
+                    query_id INTEGER
+                )
+            """)
+            
+            # Collection runs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS collection_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    query TEXT,
+                    total_found INTEGER,
+                    total_processed INTEGER,
+                    with_full_text INTEGER,
+                    without_full_text INTEGER,
+                    with_openalex INTEGER,
+                    failed_pubmed INTEGER,
+                    failed_openalex INTEGER,
+                    start_time TEXT,
+                    end_time TEXT
+                )
+            """)
+            
+            # Failed DOIs table (for papers without PMC full text)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS failed_dois (
+                    doi TEXT PRIMARY KEY,
+                    pmid TEXT,
+                    reason TEXT,
+                    timestamp TEXT
+                )
+            """)
+            
+            self.conn.commit()
     
     def insert_paper(self, metadata: PaperMetadata) -> bool:
         """
@@ -97,40 +113,44 @@ class PaperDatabase:
             True if successful, False otherwise
         """
         try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                INSERT OR REPLACE INTO papers VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
-            """, (
-                metadata.pmid,
-                metadata.pmcid,
-                metadata.doi,
-                metadata.title,
-                metadata.abstract,
-                metadata.full_text,
-                json.dumps(metadata.full_text_sections) if metadata.full_text_sections else None,
-                json.dumps(metadata.mesh_terms),
-                json.dumps(metadata.keywords),
-                json.dumps(metadata.authors),
-                metadata.year,
-                metadata.date_published,
-                metadata.journal,
-                1 if metadata.is_full_text_pmc else 0,
-                metadata.oa_url,
-                json.dumps(metadata.primary_topic) if metadata.primary_topic else None,
-                # Extract individual topic fields
-                metadata.primary_topic.get('display_name') if metadata.primary_topic else None,
-                metadata.primary_topic.get('subfield', {}).get('display_name') if metadata.primary_topic and 'subfield' in metadata.primary_topic else None,
-                metadata.primary_topic.get('field', {}).get('display_name') if metadata.primary_topic and 'field' in metadata.primary_topic else None,
-                metadata.primary_topic.get('domain', {}).get('display_name') if metadata.primary_topic and 'domain' in metadata.primary_topic else None,
-                metadata.citation_normalized_percentile,
-                metadata.cited_by_count,
-                metadata.fwci,
-                metadata.collection_date,
-                1 if metadata.openalex_retrieved else 0
-            ))
-            self.conn.commit()
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO papers VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                """, (
+                    metadata.pmid,
+                    metadata.pmcid,
+                    metadata.doi,
+                    metadata.title,
+                    metadata.abstract,
+                    metadata.full_text,
+                    json.dumps(metadata.full_text_sections) if metadata.full_text_sections else None,
+                    json.dumps(metadata.mesh_terms),
+                    json.dumps(metadata.keywords),
+                    json.dumps(metadata.authors),
+                    metadata.year,
+                    metadata.date_published,
+                    metadata.journal,
+                    1 if metadata.is_full_text_pmc else 0,
+                    metadata.oa_url,
+                    json.dumps(metadata.primary_topic) if metadata.primary_topic else None,
+                    # Extract individual topic fields
+                    metadata.primary_topic.get('display_name') if metadata.primary_topic else None,
+                    metadata.primary_topic.get('subfield', {}).get('display_name') if metadata.primary_topic and 'subfield' in metadata.primary_topic else None,
+                    metadata.primary_topic.get('field', {}).get('display_name') if metadata.primary_topic and 'field' in metadata.primary_topic else None,
+                    metadata.primary_topic.get('domain', {}).get('display_name') if metadata.primary_topic and 'domain' in metadata.primary_topic else None,
+                    metadata.citation_normalized_percentile,
+                    metadata.cited_by_count,
+                    metadata.fwci,
+                    metadata.collection_date,
+                    1 if metadata.openalex_retrieved else 0,
+                    getattr(metadata, 'parsing_status', None),  # Add parsing_status (may not exist on old metadata)
+                    metadata.query_id,
+                    getattr(metadata, 'embedding', None)  # Add embedding (BLOB, may not exist on old metadata)
+                ))
+                self.conn.commit()
             return True
         except Exception as e:
             print(f"Error inserting paper {metadata.pmid}: {str(e)}")
@@ -162,9 +182,10 @@ class PaperDatabase:
         Returns:
             True if paper exists, False otherwise
         """
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT 1 FROM papers WHERE pmid = ? LIMIT 1", (pmid,))
-        return cursor.fetchone() is not None
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT 1 FROM papers WHERE pmid = ? LIMIT 1", (pmid,))
+            return cursor.fetchone() is not None
     
     def get_paper(self, pmid: str) -> Optional[PaperMetadata]:
         """
@@ -418,8 +439,84 @@ class PaperDatabase:
             cited_by_count=row['cited_by_count'],
             fwci=row['fwci'],
             collection_date=row['collection_date'],
-            openalex_retrieved=bool(row['openalex_retrieved'])
+            openalex_retrieved=bool(row['openalex_retrieved']),
+            query_id=row['query_id'] if 'query_id' in row.keys() else None
         )
+    
+    def insert_query(self, query_text: str, description: str = None) -> int:
+        """
+        Insert a new query into the queries table.
+        
+        Args:
+            query_text: The PubMed query text
+            description: Optional description of the query
+            
+        Returns:
+            The ID of the inserted query
+        """
+        from datetime import datetime
+        with self._lock:
+            cursor = self.conn.cursor()
+            created_date = datetime.now().isoformat()
+            
+            cursor.execute("""
+                INSERT INTO queries (query_text, description, created_date)
+                VALUES (?, ?, ?)
+            """, (query_text, description, created_date))
+            self.conn.commit()
+            return cursor.lastrowid
+    
+    def get_query(self, query_id: int) -> Optional[Dict]:
+        """
+        Get a query by ID.
+        
+        Args:
+            query_id: Query ID
+            
+        Returns:
+            Dictionary with query details or None if not found
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM queries WHERE id = ?", (query_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            return dict(row)
+        return None
+    
+    def get_all_queries(self) -> List[Dict]:
+        """Get all queries from the database"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM queries ORDER BY id")
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_papers_by_query(self, query_id: int) -> List[PaperMetadata]:
+        """
+        Get all papers collected with a specific query.
+        
+        Args:
+            query_id: Query ID
+            
+        Returns:
+            List of PaperMetadata objects
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM papers WHERE query_id = ?", (query_id,))
+        return [self._row_to_metadata(row) for row in cursor.fetchall()]
+    
+    def count_papers_by_query(self, query_id: int) -> int:
+        """
+        Count papers collected with a specific query.
+        
+        Args:
+            query_id: Query ID
+            
+        Returns:
+            Number of papers
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM papers WHERE query_id = ?", (query_id,))
+        return cursor.fetchone()[0]
     
     def close(self):
         """Close database connection"""

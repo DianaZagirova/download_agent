@@ -36,12 +36,12 @@ ENTREZ_EMAIL = NCBI_CREDENTIALS[0]["email"]
 ENTREZ_API_KEY = NCBI_CREDENTIALS[0]["api_key"]
 
 # Rate limiting
-MAX_REQUESTS_PER_SEC = 9  # NCBI allows 10/sec with API key, we use 9 to be safe
-OPENALEX_DELAY = 0.1  # OpenAlex is more permissive but we still rate limit
+MAX_REQUESTS_PER_SEC = 8  # NCBI allows 10/sec with API key, we use 8 to be very safe
+OPENALEX_DELAY = 0.3  # Increased to 300ms to avoid 429 errors (was 0.1)
 
 # Threading configuration
-NUM_THREADS = 3  # Conservative to avoid rate limits (NCBI allows ~9 req/sec)
-BATCH_SIZE = 50  # Moderate batch size
+NUM_THREADS = 2  # Very conservative to prioritize completeness over speed (was 3)
+BATCH_SIZE = 30  # Smaller batch size for better rate limiting (was 50)
 CHECKPOINT_EVERY = 10  # Save progress every N batches
 
 # Batch fetching configuration
@@ -104,8 +104,8 @@ def set_output_directory(custom_dir: str):
     }
 
 # Retry configuration
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+MAX_RETRIES = 5  # Increased from 3 to handle transient errors
+RETRY_DELAY = 3  # Increased from 2 seconds for better backoff
 
 # Text cleaning configuration
 CLEAN_FULL_TEXT = True  # Clean LaTeX and special characters from full text

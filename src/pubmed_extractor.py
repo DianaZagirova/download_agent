@@ -66,27 +66,152 @@ def safe_ncbi_call(func, *args, **kwargs):
                 return None
 
 
-def search_pubmed(query: str, max_results: int = 50000) -> List[str]:
+def _search_pubmed_with_date_splitting(query: str, target_count: int, use_cache: bool = True) -> List[str]:
     """
-    Search PubMed with a query and return list of PMIDs.
+    Search PubMed for large result sets by splitting into date ranges.
+    This works around PubMed's 10K limit per search.
     
     Args:
         query: PubMed search query
-        max_results: Maximum number of results to retrieve
+        target_count: Target number of PMIDs to retrieve
+        use_cache: Whether to cache results
         
     Returns:
         List of PMIDs
     """
+    from datetime import datetime
+    from .query_cache import QueryCache
+    
+    # Define date ranges (yearly splits going back to 1950)
+    current_year = datetime.now().year
+    all_pmids = set()  # Use set to avoid duplicates
+    
+    print(f"Retrieving {target_count:,} papers by splitting into yearly ranges...")
+    
+    # Try yearly ranges from most recent to oldest
+    for year in range(current_year, 1949, -1):
+        # Add date filter to query
+        year_query = f"({query}) AND {year}[pdat]"
+        
+        print(f"  Searching year {year}...")
+        
+        # Search this year's results
+        handle = safe_ncbi_call(
+            Entrez.esearch,
+            db="pubmed",
+            term=year_query,
+            retmax=0
+        )
+        
+        if not handle:
+            continue
+            
+        record = Entrez.read(handle)
+        handle.close()
+        
+        year_count = int(record["Count"])
+        
+        if year_count == 0:
+            continue
+        
+        print(f"    Year {year}: {year_count:,} papers")
+        
+        # If this year has <10K results, fetch them directly
+        if year_count <= 10000:
+            # Fetch all for this year
+            year_handle = safe_ncbi_call(
+                Entrez.esearch,
+                db="pubmed",
+                term=year_query,
+                retmax=min(year_count, 10000),
+                sort="relevance"
+            )
+            
+            if year_handle:
+                year_record = Entrez.read(year_handle)
+                year_handle.close()
+                year_pmids = year_record["IdList"]
+                all_pmids.update(year_pmids)
+                print(f"      Retrieved {len(year_pmids):,} PMIDs (total: {len(all_pmids):,})")
+        else:
+            # Year has >10K, split by month
+            print(f"      Year {year} has >10K results, splitting by month...")
+            for month in range(1, 13):
+                month_query = f"({query}) AND {year}/{month:02d}[pdat]"
+                
+                month_handle = safe_ncbi_call(
+                    Entrez.esearch,
+                    db="pubmed",
+                    term=month_query,
+                    retmax=10000,
+                    sort="relevance"
+                )
+                
+                if month_handle:
+                    month_record = Entrez.read(month_handle)
+                    month_handle.close()
+                    month_pmids = month_record["IdList"]
+                    if month_pmids:
+                        all_pmids.update(month_pmids)
+                        print(f"        {year}/{month:02d}: +{len(month_pmids)} PMIDs (total: {len(all_pmids):,})")
+        
+        # Stop if we've retrieved enough
+        if len(all_pmids) >= target_count:
+            print(f"  Reached target count, stopping...")
+            break
+        
+        # Delay between years to respect rate limits (increased for safety)
+        time.sleep(0.5)  # Was 0.3, now 0.5 for better rate limiting
+    
+    print(f"Successfully retrieved {len(all_pmids):,} unique PMIDs via date splitting")
+    
+    # Cache the results
+    pmid_list = list(all_pmids)
+    if use_cache:
+        cache = QueryCache()
+        cache.set(query, pmid_list)
+    
+    return pmid_list
+
+
+def search_pubmed(query: str, max_results: int = 50000, use_cache: bool = True) -> List[str]:
+    """
+    Search PubMed with a query and return list of PMIDs.
+    For >10K results, uses date-based splitting.
+    Caches results to avoid re-fetching for identical queries.
+    
+    Args:
+        query: PubMed search query
+        max_results: Maximum number of results to retrieve
+        use_cache: Whether to use cached results (default: True)
+        
+    Returns:
+        List of PMIDs
+    """
+    from .query_cache import QueryCache
+    
     Entrez.email = ENTREZ_EMAIL
     Entrez.api_key = ENTREZ_API_KEY
     
+    # Check cache first
+    if use_cache:
+        cache = QueryCache()
+        cached_pmids = cache.get(query)
+        if cached_pmids is not None:
+            # Respect max_results even with cached data
+            if len(cached_pmids) > max_results:
+                print(f"  Limiting cached results to {max_results:,} PMIDs")
+                return cached_pmids[:max_results]
+            return cached_pmids
+    
     print(f"Searching PubMed with query...")
+    
+    # First, get the total count
     handle = safe_ncbi_call(
         Entrez.esearch,
         db="pubmed",
         term=query,
-        retmax=max_results,
-        sort="relevance"
+        retmax=0  # Just get count
     )
     
     if not handle:
@@ -96,9 +221,67 @@ def search_pubmed(query: str, max_results: int = 50000) -> List[str]:
     record = Entrez.read(handle)
     handle.close()
     
-    id_list = record["IdList"]
-    print(f"Found {len(id_list)} papers matching the query")
-    return id_list
+    total_count = int(record["Count"])
+    print(f"Total papers matching query: {total_count:,}")
+    
+    # Determine how many to actually retrieve
+    num_to_retrieve = min(total_count, max_results)
+    
+    if num_to_retrieve == 0:
+        return []
+    
+    # PubMed has strict limits on retstart (~10K max)
+    # For >10K results, split by date ranges automatically
+    if num_to_retrieve > 10000:
+        print(f"Large result set detected ({num_to_retrieve:,} papers)")
+        print(f"Splitting query by date ranges to retrieve all results...")
+        return _search_pubmed_with_date_splitting(query, num_to_retrieve, use_cache)
+    
+    batch_size = 5000  # Conservative batch size
+    all_ids = []
+    
+    print(f"Retrieving {num_to_retrieve:,} PMIDs in batches of {batch_size:,}...")
+    
+    for start in range(0, num_to_retrieve, batch_size):
+        # Calculate how many to fetch in this batch
+        fetch_count = min(batch_size, num_to_retrieve - start)
+        
+        print(f"  Fetching PMIDs {start+1:,} to {start+fetch_count:,}...")
+        
+        # Standard approach with esearch and retstart (works for <10K results)
+        handle = safe_ncbi_call(
+            Entrez.esearch,
+            db="pubmed",
+            term=query,
+            retstart=start,
+            retmax=fetch_count,
+            sort="relevance"
+        )
+        
+        if not handle:
+            print(f"  Failed to fetch batch starting at {start}")
+            continue
+        
+        batch_record = Entrez.read(handle)
+        handle.close()
+        
+        batch_ids = batch_record["IdList"]
+        
+        all_ids.extend(batch_ids)
+        print(f"  Retrieved {len(batch_ids):,} PMIDs (total so far: {len(all_ids):,})")
+        
+        # Delay between batches to respect rate limits
+        if start + batch_size < num_to_retrieve:
+            time.sleep(0.75)  # Increased from 0.5 to 0.75 for better safety
+    
+    print(f"Successfully retrieved {len(all_ids):,} PMIDs")
+    
+    # Cache the results
+    if use_cache:
+        cache = QueryCache()
+        cache.set(query, all_ids)
+    
+    return all_ids
 
 
 def search_pubmed_by_dois(dois: List[str]) -> Dict[str, str]:

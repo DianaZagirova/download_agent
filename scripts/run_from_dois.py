@@ -70,7 +70,8 @@ print("Starting paper collection from DOIs...")
 collect_papers_from_dois(
     dois=dois_to_collect,
     use_threading=USE_THREADING,
-    output_dir=OUTPUT_DIR
+    output_dir=OUTPUT_DIR,
+    query_description=f"DOI collection: {len(dois_to_collect)} papers"
 )
 
 # Print results location

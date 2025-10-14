@@ -53,17 +53,17 @@ def enrich_with_openalex(metadata: PaperMetadata) -> PaperMetadata:
                 if primary_topic and isinstance(primary_topic, dict):
                     metadata.primary_topic = primary_topic
                     
-                    # Debug log topic fields
-                    topic_name = primary_topic.get('display_name')
-                    topic_subfield = primary_topic.get('subfield', {}).get('display_name') if 'subfield' in primary_topic else None
-                    topic_field = primary_topic.get('field', {}).get('display_name') if 'field' in primary_topic else None
-                    topic_domain = primary_topic.get('domain', {}).get('display_name') if 'domain' in primary_topic else None
-                    
-                    print(f"Topic info for {metadata.doi}:")
-                    print(f"  - Topic: {topic_name}")
-                    print(f"  - Subfield: {topic_subfield}")
-                    print(f"  - Field: {topic_field}")
-                    print(f"  - Domain: {topic_domain}")
+                    # Debug log topic fields (DISABLED for large runs - uncomment if needed)
+                    # topic_name = primary_topic.get('display_name')
+                    # topic_subfield = primary_topic.get('subfield', {}).get('display_name') if 'subfield' in primary_topic else None
+                    # topic_field = primary_topic.get('field', {}).get('display_name') if 'field' in primary_topic else None
+                    # topic_domain = primary_topic.get('domain', {}).get('display_name') if 'domain' in primary_topic else None
+                    # 
+                    # print(f"Topic info for {metadata.doi}:")
+                    # print(f"  - Topic: {topic_name}")
+                    # print(f"  - Subfield: {topic_subfield}")
+                    # print(f"  - Field: {topic_field}")
+                    # print(f"  - Domain: {topic_domain}")
                 
                 metadata.openalex_retrieved = True
                 return metadata
@@ -71,10 +71,20 @@ def enrich_with_openalex(metadata: PaperMetadata) -> PaperMetadata:
             elif response.status_code == 404:
                 # DOI not found in OpenAlex
                 return metadata
+            elif response.status_code == 429:
+                # Rate limit - use exponential backoff
+                if attempt < MAX_RETRIES - 1:
+                    backoff_time = RETRY_DELAY * (2 ** attempt)  # Exponential: 3s, 6s, 12s, 24s, 48s
+                    print(f"OpenAlex rate limit (429) for DOI {doi}, waiting {backoff_time}s before retry {attempt+1}/{MAX_RETRIES}...")
+                    time.sleep(backoff_time)
+                else:
+                    print(f"Failed to retrieve OpenAlex data for DOI {doi} after {MAX_RETRIES} attempts (rate limited)")
+                    return metadata
             else:
                 if attempt < MAX_RETRIES - 1:
-                    print(f"OpenAlex API returned {response.status_code} for DOI {doi}, retrying...")
-                    time.sleep(RETRY_DELAY)
+                    wait_time = RETRY_DELAY * (1 + attempt)  # Linear backoff for other errors
+                    print(f"OpenAlex API returned {response.status_code} for DOI {doi}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
                 else:
                     print(f"Failed to retrieve OpenAlex data for DOI {doi} after {MAX_RETRIES} attempts")
                     return metadata

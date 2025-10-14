@@ -46,13 +46,14 @@ def process_paper_with_openalex(pmid: str) -> Tuple[Optional[PaperMetadata], boo
     return metadata, pubmed_success, openalex_success
 
 
-def process_batch(pmid_batch: List[str], db: PaperDatabase) -> Tuple[int, int, int, int, int]:
+def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None) -> Tuple[int, int, int, int, int]:
     """
     Process a batch of PMIDs using batch metadata fetching for speed.
     
     Args:
         pmid_batch: List of PMIDs to process
         db: Database handler
+        query_id: Query ID to assign to papers
         
     Returns:
         Tuple of (processed, with_fulltext, with_openalex, failed, skipped)
@@ -140,6 +141,12 @@ def process_batch(pmid_batch: List[str], db: PaperDatabase) -> Tuple[int, int, i
     # Process all papers (with and without full text)
     all_papers_to_save = papers_with_pmcid + papers_without_pmcid
     
+    # Assign query_id to all metadata objects if provided
+    if query_id is not None:
+        for metadata in all_papers_to_save:
+            if metadata:
+                metadata.query_id = query_id
+    
     # Parallelize OpenAlex enrichment for papers with DOIs
     papers_with_doi = [m for m in all_papers_to_save if m and m.doi]
     papers_without_doi = [m for m in all_papers_to_save if m and not m.doi]
@@ -190,7 +197,7 @@ def process_batch(pmid_batch: List[str], db: PaperDatabase) -> Tuple[int, int, i
     return processed, with_fulltext, with_openalex, failed, skipped
 
 
-def collect_papers(query: str, max_results: int = 50000, use_threading: bool = True, output_dir: str = None):
+def collect_papers(query: str, max_results: int = 50000, use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None):
     """
     Main function to collect papers from PubMed.
     
@@ -200,6 +207,8 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
         use_threading: Whether to use multi-threading
         output_dir: Custom output directory (default: paper_collection/data)
                    Can be relative (to project root) or absolute path
+        query_description: Optional description for the query
+        query_id: Optional query ID (if None, a new query will be created in the database)
     """
     # Set custom output directory if provided
     if output_dir:
@@ -240,6 +249,14 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
         db = PaperDatabase()
     print(f"Database initialized at: {db.db_path}\n")
     
+    # Create or use existing query_id
+    if query_id is None:
+        print("Step 2.1: Creating query record...")
+        query_id = db.insert_query(query, query_description)
+        print(f"Query registered with ID: {query_id}\n")
+    else:
+        print(f"Using existing query ID: {query_id}\n")
+    
     # Process papers
     print("Step 3: Processing papers (extracting metadata and full text)...")
     print(f"Configuration: {NUM_THREADS} threads, batch size {BATCH_SIZE}")
@@ -256,7 +273,7 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
         batches_per_credential = max(10, len(batches) // len(NCBI_CREDENTIALS))
         
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            futures = {executor.submit(process_batch, batch, db): batch for batch in batches}
+            futures = {executor.submit(process_batch, batch, db, query_id): batch for batch in batches}
             
             for i, future in enumerate(tqdm(as_completed(futures), total=len(futures), desc="Processing batches")):
                 try:
@@ -293,6 +310,8 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
             metadata, pubmed_success, openalex_success = process_paper_with_openalex(pmid)
             
             if metadata:
+                # Set query_id
+                metadata.query_id = query_id
                 if db.insert_paper(metadata):
                     stats.total_processed += 1
                     if metadata.is_full_text_pmc:
@@ -300,6 +319,7 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
                     if openalex_success:
                         stats.with_openalex += 1
                     
+                    # Track papers without full text
                     if not metadata.is_full_text_pmc and metadata.doi:
                         db.add_failed_doi(
                             metadata.doi,
@@ -309,7 +329,6 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
                         )
             else:
                 stats.failed_pubmed += 1
-    
     elapsed = time.time() - start_time
     stats.end_time = datetime.now().isoformat()
     stats.without_full_text = stats.total_processed - stats.with_full_text
@@ -346,7 +365,7 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
     print("="*60 + "\n")
 
 
-def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output_dir: str = None):
+def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None):
     """
     Collect papers from a list of DOIs.
     
@@ -354,6 +373,8 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         dois: List of DOIs
         use_threading: Whether to use multi-threading
         output_dir: Custom output directory (default: paper_collection/data)
+        query_description: Optional description for the query
+        query_id: Optional query ID (if None, a new query will be created in the database)
     """
     # Set custom output directory if provided
     if output_dir:
@@ -395,6 +416,15 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         db = PaperDatabase()
     print(f"Database initialized at: {db.db_path}\n")
     
+    # Create or use existing query_id
+    if query_id is None:
+        print("Step 2.1: Creating query record...")
+        query_text = f"DOI list ({len(dois)} DOIs)"
+        query_id = db.insert_query(query_text, query_description)
+        print(f"Query registered with ID: {query_id}\n")
+    else:
+        print(f"Using existing query ID: {query_id}\n")
+    
     # Process papers
     print("Step 3: Processing papers (extracting metadata and full text)...")
     print(f"Configuration: {NUM_THREADS} threads, batch size {BATCH_SIZE}")
@@ -408,7 +438,7 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         batches = [pmid_list[i:i+BATCH_SIZE] for i in range(0, len(pmid_list), BATCH_SIZE)]
         
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            futures = {executor.submit(process_batch, batch, db): batch for batch in batches}
+            futures = {executor.submit(process_batch, batch, db, query_id): batch for batch in batches}
             
             for i, future in enumerate(tqdm(as_completed(futures), total=len(futures), desc="Processing batches")):
                 try:
@@ -428,7 +458,7 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         
         for batch in tqdm(batches, desc="Processing batches"):
             try:
-                processed, with_fulltext, with_openalex, failed, skipped = process_batch(batch, db)
+                processed, with_fulltext, with_openalex, failed, skipped = process_batch(batch, db, query_id)
                 stats.total_processed += processed
                 stats.with_full_text += with_fulltext
                 stats.with_openalex += with_openalex
