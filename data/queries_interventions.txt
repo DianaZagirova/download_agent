@@ -1,0 +1,26 @@
+queries =["""("caloric restriction"[tiab] OR "dietary restriction"[tiab]) """,
+"""("autophagy"[tiab]) """,
+"""("rapamycin"[tiab]) """,
+"""("senolytic"[tiab] OR "senolytics"[tiab]) """,
+"""("naked mole rat"[tiab] OR "Heterocephalus glaber"[tiab])""",
+"""("Hydra"[tiab]) """,
+"""("Drosophila"[tiab] OR "Drosophila melanogaster"[tiab])""",
+"""("C. elegans"[tiab] OR "Caenorhabditis elegans"[tiab])"""]
+
+QUERIES_SUFFIX = """ AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab])
+AND ( "aging"[Mesh] OR aging[tiab] AND “Aging"[Majr] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])
+NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
+  NOT ( wellbeing[tiab] OR "public health"[tiab])
+  NOT ("religion"[tiab])
+  NOT ("Cosmetics"[mh])
+ NOT ("Skin"[mh] OR "Dermatology"[mh])
+NOT ("cancer"[TI] OR "ovarian"[TI] OR "liver"[TI] OR "kidne*"[TI] OR "skin"[TI] OR "religion"[TI] OR "enjoyment"[TI])"""
+
+QUERY_RUN_NAMES = ["interventions", 
+"interventions",
+"interventions",
+"interventions",
+"model_organisms",
+"model_organisms",
+"model_organisms",
+"model_organisms"]  # Descriptive name for query-based run

@@ -13,6 +13,10 @@ NCBI_CREDENTIALS = [
     {
         "email": "kudrjavcev.aleks.2011@post.bio.msu.ru",
         "api_key": "d8cd10c6d3c7feba50589cfda225cebcf309"
+    },
+    {
+        "email": "eremin@easyomics.com",
+        "api_key": "eae5b137e80f6d305bc1c4774ef0160cee08"
     }
 ]
 
@@ -37,7 +41,13 @@ ENTREZ_API_KEY = NCBI_CREDENTIALS[0]["api_key"]
 
 # Rate limiting
 MAX_REQUESTS_PER_SEC = 8  # NCBI allows 10/sec with API key, we use 8 to be very safe
-OPENALEX_DELAY = 0.3  # Increased to 300ms to avoid 429 errors (was 0.1)
+
+# OpenAlex Configuration
+# OpenAlex rate limits: 10 req/sec, 100k req/day (polite pool gives more consistent response times)
+# See: https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication
+OPENALEX_EMAIL = NCBI_CREDENTIALS[0]["email"]  # Email for "polite pool" access
+OPENALEX_DELAY = 0.15  # 150ms = ~6.7 req/sec per worker (conservative to stay under 10 req/sec total)
+OPENALEX_MAX_REQUESTS_PER_DAY = 95000  # Set below 100k limit to have safety margin
 
 # Threading configuration
 NUM_THREADS = 2  # Very conservative to prioritize completeness over speed (was 3)
@@ -47,6 +57,23 @@ CHECKPOINT_EVERY = 10  # Save progress every N batches
 # Batch fetching configuration
 METADATA_FETCH_BATCH_SIZE = 200  # Fetch up to 200 PMIDs per API call (NCBI allows up to 500)
 FULLTEXT_PARALLEL_WORKERS = 2  # Conservative parallel workers to respect rate limits
+
+# OpenAlex parallel workers
+# IMPORTANT: Reduced from 3 to 1 to avoid hitting 10 req/sec limit
+# With OPENALEX_DELAY=0.15s: 1 worker = ~6.7 req/sec (safe), 2 workers = ~13.3 req/sec (exceeds limit)
+OPENALEX_PARALLEL_WORKERS = 1  # MUST be 1 to avoid 429 rate limit errors
+
+# OpenAlex batch enrichment
+# Use batch API calls to fetch up to 50 DOIs per request (50x faster!)
+# Recommended: True (much more efficient and stays under rate limits)
+USE_OPENALEX_BATCH_ENRICHMENT = True
+OPENALEX_BATCH_SIZE = 50  # Max DOIs per API call (OpenAlex recommends 50)
+
+# Export configuration
+# For large databases (>10k papers), JSON export can be slow
+SKIP_EXPORT_IF_NO_NEW_PAPERS = True  # Skip export if all papers were skipped (already in DB)
+EXPORT_COMPACT_JSON = True  # Use compact JSON (no indentation, 50-70% smaller and faster)
+EXPORT_ON_EVERY_RUN = False  # If False, only export when new papers are added
 
 # Directory structure (defaults)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

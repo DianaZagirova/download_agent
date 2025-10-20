@@ -2,20 +2,26 @@
 """
 Main orchestrator for PubMed paper collection system
 """
+import sys
 import time
+import traceback
 from datetime import datetime
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from typing import List, Tuple, Optional
 
 from src.models import PaperMetadata, CollectionStats
 from src.pubmed_extractor import search_pubmed, search_pubmed_by_dois, process_paper, extract_pubmed_metadata_batch
-from src.openalex_extractor import enrich_with_openalex
+from src.openalex_extractor import enrich_with_openalex, batch_enrich_with_openalex
 from src.database import PaperDatabase
 from src.config import (
     NUM_THREADS, BATCH_SIZE, CHECKPOINT_EVERY,
     CHECKPOINT_DIR, FAILED_DOIS_FILE, METADATA_FETCH_BATCH_SIZE,
-    FULLTEXT_PARALLEL_WORKERS, rotate_credentials, NCBI_CREDENTIALS
+    FULLTEXT_PARALLEL_WORKERS, OPENALEX_PARALLEL_WORKERS, 
+    USE_OPENALEX_BATCH_ENRICHMENT, OPENALEX_BATCH_SIZE,
+    SKIP_EXPORT_IF_NO_NEW_PAPERS, EXPORT_COMPACT_JSON, EXPORT_ON_EVERY_RUN,
+    rotate_credentials, NCBI_CREDENTIALS
 )
 
 
@@ -46,30 +52,45 @@ def process_paper_with_openalex(pmid: str) -> Tuple[Optional[PaperMetadata], boo
     return metadata, pubmed_success, openalex_success
 
 
-def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None) -> Tuple[int, int, int, int, int]:
+def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None, skip_existing: bool = False) -> Tuple[int, int, int, int, int, int]:
     """
     Process a batch of PMIDs using batch metadata fetching for speed.
     
     Args:
         pmid_batch: List of PMIDs to process
-        db: Database handler
+        db: Database instance
         query_id: Query ID to assign to papers
+        skip_existing: If True, skip ALL existing papers (no enrichment)
         
     Returns:
-        Tuple of (processed, with_fulltext, with_openalex, failed, skipped)
+        Tuple of (processed, with_fulltext, with_openalex, failed, skipped, enriched)
     """
     processed = 0
     with_fulltext = 0
     with_openalex = 0
     failed = 0
     skipped = 0
+    enriched = 0
     
-    # Filter out papers that already exist in database
-    pmids_to_process = [pmid for pmid in pmid_batch if not db.paper_exists(pmid)]
-    skipped = len(pmid_batch) - len(pmids_to_process)
+    # Separate papers into: new papers, papers needing enrichment, and papers to skip
+    pmids_to_process = []  # New papers
+    papers_to_enrich = []  # Existing papers missing abstract or full text
     
-    if not pmids_to_process:
-        return processed, with_fulltext, with_openalex, failed, skipped
+    for pmid in pmid_batch:
+        needs_enrichment, existing_paper = db.paper_needs_enrichment(pmid)
+        
+        if existing_paper is None:
+            # Paper doesn't exist - add to new papers list
+            pmids_to_process.append(pmid)
+        elif needs_enrichment and not skip_existing:
+            # Paper exists but needs enrichment (only if enrichment is enabled)
+            papers_to_enrich.append(existing_paper)
+        else:
+            # Paper exists - skip (either complete OR skip_existing=True)
+            skipped += 1
+    
+    if not pmids_to_process and not papers_to_enrich:
+        return processed, with_fulltext, with_openalex, failed, skipped, enriched
     
     # Batch fetch metadata for all PMIDs at once (much faster!)
     # Split into sub-batches if needed to respect METADATA_FETCH_BATCH_SIZE
@@ -138,6 +159,25 @@ def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None
                 except Exception as e:
                     print(f"Error fetching full text: {e}")
     
+    # Enrich existing papers that are missing abstract or full text
+    if papers_to_enrich:
+        print(f"  📝 Enriching {len(papers_to_enrich)} existing papers with missing content...")
+        with FullTextExecutor(max_workers=FULLTEXT_PARALLEL_WORKERS) as ft_executor:
+            futures = {ft_executor.submit(fetch_fulltext_for_paper, paper): paper 
+                      for paper in papers_to_enrich}
+            for future in futures:
+                try:
+                    enriched_paper = future.result()
+                    # Check if enrichment was successful
+                    if enriched_paper.full_text or enriched_paper.abstract:
+                        # Update in database
+                        if db.insert_paper(enriched_paper):  # INSERT OR REPLACE
+                            enriched += 1
+                            print(f"  ✓ Enriched PMID {enriched_paper.pmid}: "
+                                  f"{'full_text' if enriched_paper.is_full_text_pmc else 'abstract only'}")
+                except Exception as e:
+                    print(f"  ✗ Error enriching existing paper: {e}")
+    
     # Process all papers (with and without full text)
     all_papers_to_save = papers_with_pmcid + papers_without_pmcid
     
@@ -147,26 +187,32 @@ def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None
             if metadata:
                 metadata.query_id = query_id
     
-    # Parallelize OpenAlex enrichment for papers with DOIs
-    papers_with_doi = [m for m in all_papers_to_save if m and m.doi]
-    papers_without_doi = [m for m in all_papers_to_save if m and not m.doi]
-    
-    if papers_with_doi:
-        with FullTextExecutor(max_workers=min(3, len(papers_with_doi))) as oa_executor:
-            futures = {oa_executor.submit(enrich_with_openalex, paper): paper 
-                      for paper in papers_with_doi}
-            enriched_papers = []
-            for future in futures:
-                try:
-                    enriched_papers.append(future.result())
-                except Exception as e:
-                    print(f"Error enriching with OpenAlex: {e}")
-                    enriched_papers.append(futures[future])  # Use original if enrichment fails
+    # OpenAlex enrichment - use batch API if enabled (50x faster!)
+    if USE_OPENALEX_BATCH_ENRICHMENT:
+        # Batch enrichment: fetch up to 50 DOIs per API call
+        all_papers_final = batch_enrich_with_openalex(all_papers_to_save, batch_size=OPENALEX_BATCH_SIZE)
     else:
-        enriched_papers = []
-    
-    # Combine enriched and non-enriched papers
-    all_papers_final = enriched_papers + papers_without_doi
+        # Legacy method: parallel individual requests
+        papers_with_doi = [m for m in all_papers_to_save if m and m.doi]
+        papers_without_doi = [m for m in all_papers_to_save if m and not m.doi]
+        
+        if papers_with_doi:
+            # Use configured parallel workers (default: 1 to avoid rate limits)
+            with FullTextExecutor(max_workers=min(OPENALEX_PARALLEL_WORKERS, len(papers_with_doi))) as oa_executor:
+                futures = {oa_executor.submit(enrich_with_openalex, paper): paper 
+                          for paper in papers_with_doi}
+                enriched_papers = []
+                for future in futures:
+                    try:
+                        enriched_papers.append(future.result())
+                    except Exception as e:
+                        print(f"Error enriching with OpenAlex: {e}")
+                        enriched_papers.append(futures[future])  # Use original if enrichment fails
+        else:
+            enriched_papers = []
+        
+        # Combine enriched and non-enriched papers
+        all_papers_final = enriched_papers + papers_without_doi
     
     for metadata in all_papers_final:
         if metadata is None:
@@ -194,10 +240,10 @@ def process_batch(pmid_batch: List[str], db: PaperDatabase, query_id: int = None
         else:
             failed += 1
     
-    return processed, with_fulltext, with_openalex, failed, skipped
+    return processed, with_fulltext, with_openalex, failed, skipped, enriched
 
 
-def collect_papers(query: str, max_results: int = 50000, use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None):
+def collect_papers(query: str, max_results: int = 50000, use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None, check_num: bool | int = None, skip_existing: bool = True):
     """
     Main function to collect papers from PubMed.
     
@@ -209,6 +255,7 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
                    Can be relative (to project root) or absolute path
         query_description: Optional description for the query
         query_id: Optional query ID (if None, a new query will be created in the database)
+        skip_existing: If True, skip ALL papers already in database (no enrichment). Default: True
     """
     # Set custom output directory if provided
     if output_dir:
@@ -231,6 +278,10 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
     # Search PubMed
     print("Step 1: Searching PubMed...")
     pmid_list = search_pubmed(query, max_results)
+    if check_num is not None:
+        if len(pmid_list) >= check_num:
+            print(f"Error: Expected less than {check_num} papers, but found {len(pmid_list)} papers. Exiting.")
+            return
     
     if not pmid_list:
         print("No papers found. Exiting.")
@@ -273,19 +324,22 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
         batches_per_credential = max(10, len(batches) // len(NCBI_CREDENTIALS))
         
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            futures = {executor.submit(process_batch, batch, db, query_id): batch for batch in batches}
+            futures = {executor.submit(process_batch, batch, db, query_id, skip_existing): batch for batch in batches}
             
             for i, future in enumerate(tqdm(as_completed(futures), total=len(futures), desc="Processing batches")):
                 try:
-                    processed, with_fulltext, with_openalex, failed, skipped = future.result()
+                    processed, with_fulltext, with_openalex, failed, skipped, enriched = future.result()
                     stats.total_processed += processed
                     stats.with_full_text += with_fulltext
                     stats.with_openalex += with_openalex
                     stats.failed_pubmed += failed
                     total_skipped += skipped
+                    # Note: enriched papers are included in total_processed
                     
                 except Exception as exc:
                     print(f"\nBatch failed with exception: {exc}")
+                    print(f"Full traceback:", file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
                     stats.failed_pubmed += len(futures[future])
                 
                 # Proactively rotate credentials every N batches
@@ -341,9 +395,24 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
     print("\nStep 4: Saving results...")
     db.save_collection_stats(stats)
     
-    # Export data
-    json_path = db.export_to_json()
-    failed_path = db.export_failed_dois_to_file(format='json')  # Export as JSON
+    # Determine if we should export
+    should_export = EXPORT_ON_EVERY_RUN or stats.total_processed > 0
+    
+    if SKIP_EXPORT_IF_NO_NEW_PAPERS and stats.total_processed == 0:
+        print("⏭  Skipping JSON export (no new papers added)")
+        # Get paths for display purposes
+        db_dir = Path(db.db_path).parent
+        json_path = str(db_dir / "papers_export.json")
+        failed_path = str(db_dir / "failed_dois.json")
+    elif should_export:
+        # Export data (use compact format for speed with large datasets)
+        json_path = db.export_to_json(compact=EXPORT_COMPACT_JSON)
+        failed_path = db.export_failed_dois_to_file(format='json')
+    else:
+        print("⏭  Skipping JSON export (EXPORT_ON_EVERY_RUN=False and no new papers)")
+        db_dir = Path(db.db_path).parent
+        json_path = str(db_dir / "papers_export.json")
+        failed_path = str(db_dir / "failed_dois.json")
     
     # Print final statistics
     stats.print_summary()
@@ -365,7 +434,7 @@ def collect_papers(query: str, max_results: int = 50000, use_threading: bool = T
     print("="*60 + "\n")
 
 
-def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None):
+def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output_dir: str = None, query_description: str = None, query_id: int = None, skip_existing: bool = True):
     """
     Collect papers from a list of DOIs.
     
@@ -375,6 +444,7 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         output_dir: Custom output directory (default: paper_collection/data)
         query_description: Optional description for the query
         query_id: Optional query ID (if None, a new query will be created in the database)
+        skip_existing: If True, skip ALL papers already in database (no enrichment). Default: True
     """
     # Set custom output directory if provided
     if output_dir:
@@ -438,19 +508,22 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         batches = [pmid_list[i:i+BATCH_SIZE] for i in range(0, len(pmid_list), BATCH_SIZE)]
         
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            futures = {executor.submit(process_batch, batch, db, query_id): batch for batch in batches}
+            futures = {executor.submit(process_batch, batch, db, query_id, skip_existing): batch for batch in batches}
             
             for i, future in enumerate(tqdm(as_completed(futures), total=len(futures), desc="Processing batches")):
                 try:
-                    processed, with_fulltext, with_openalex, failed, skipped = future.result()
+                    processed, with_fulltext, with_openalex, failed, skipped, enriched = future.result()
                     stats.total_processed += processed
                     stats.with_full_text += with_fulltext
                     stats.with_openalex += with_openalex
                     stats.failed_pubmed += failed
                     total_skipped += skipped
+                    # Note: enriched papers are included in total_processed
                     
                 except Exception as exc:
                     print(f"\nBatch failed with exception: {exc}")
+                    print(f"Full traceback:", file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
                     stats.failed_pubmed += len(futures[future])
     else:
         # Single-threaded processing
@@ -458,7 +531,7 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
         
         for batch in tqdm(batches, desc="Processing batches"):
             try:
-                processed, with_fulltext, with_openalex, failed, skipped = process_batch(batch, db, query_id)
+                processed, with_fulltext, with_openalex, failed, skipped, enriched = process_batch(batch, db, query_id, skip_existing)
                 stats.total_processed += processed
                 stats.with_full_text += with_fulltext
                 stats.with_openalex += with_openalex
@@ -466,6 +539,8 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
                 total_skipped += skipped
             except Exception as exc:
                 print(f"\nBatch failed with exception: {exc}")
+                print(f"Full traceback:", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 stats.failed_pubmed += len(batch)
     
     # Calculate elapsed time
@@ -478,9 +553,23 @@ def collect_papers_from_dois(dois: List[str], use_threading: bool = True, output
     # Save statistics
     db.save_collection_stats(stats)
     
-    # Export data
-    json_path = db.export_to_json()
-    failed_path = db.export_failed_dois_to_file(format='json')
+    # Determine if we should export
+    should_export = EXPORT_ON_EVERY_RUN or stats.total_processed > 0
+    
+    if SKIP_EXPORT_IF_NO_NEW_PAPERS and stats.total_processed == 0:
+        print("⏭  Skipping JSON export (no new papers added)")
+        db_dir = Path(db.db_path).parent
+        json_path = str(db_dir / "papers_export.json")
+        failed_path = str(db_dir / "failed_dois.json")
+    elif should_export:
+        # Export data (use compact format for speed with large datasets)
+        json_path = db.export_to_json(compact=EXPORT_COMPACT_JSON)
+        failed_path = db.export_failed_dois_to_file(format='json')
+    else:
+        print("⏭  Skipping JSON export (EXPORT_ON_EVERY_RUN=False and no new papers)")
+        db_dir = Path(db.db_path).parent
+        json_path = str(db_dir / "papers_export.json")
+        failed_path = str(db_dir / "failed_dois.json")
     
     # Print final statistics
     stats.print_summary()
@@ -527,7 +616,7 @@ def main():
     use_threading = True  # Set to False for debugging
     
     try:
-        collect_papers(query, max_results, use_threading)
+        collect_papers(query, max_results, use_threading, check_num=None)
     except KeyboardInterrupt:
         print("\n\nProcess interrupted by user. Exiting...")
     except Exception as e:

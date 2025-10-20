@@ -353,9 +353,8 @@ def search_pubmed_by_dois(dois: List[str]) -> Dict[str, str]:
                             # Find DOI in article IDs
                             for id_item in pubmed_data.get('ArticleIdList', []):
                                 id_str = str(id_item)
-                                if '/' in id_str and not id_str.startswith('PMC'):
-                                    # This is likely a DOI
-                                    # Normalize DOI for comparison
+                                id_type = id_item.attributes.get('IdType') if hasattr(id_item, 'attributes') else None
+                                if id_type and id_type.lower() == 'doi':
                                     article_doi = id_str.lower().strip()
                                     
                                     # Check if this DOI is in our batch
@@ -435,11 +434,11 @@ def extract_pubmed_metadata_batch(pmids: List[str]) -> Dict[str, PaperMetadata]:
             pmcids = []
             for id_item in pubmed_data.get('ArticleIdList', []):
                 id_str = str(id_item)
+                id_type = id_item.attributes.get('IdType') if hasattr(id_item, 'attributes') else None
                 if id_str.startswith('PMC'):
                     pmcids.append(id_str)
-                elif '/' in id_str and not id_str.startswith('PMC'):
-                    # Likely a DOI
-                    metadata.doi = id_str
+                elif id_type and id_type.lower() == 'doi':
+                    metadata.doi = id_str.strip()
             
             # Store the first PMC ID (if any)
             if pmcids:
@@ -640,11 +639,11 @@ def extract_pubmed_metadata(pmid: str) -> Optional[PaperMetadata]:
     pmcids = []
     for id_item in pubmed_data.get('ArticleIdList', []):
         id_str = str(id_item)
+        id_type = id_item.attributes.get('IdType') if hasattr(id_item, 'attributes') else None
         if id_str.startswith('PMC'):
             pmcids.append(id_str)
-        elif '/' in id_str and not id_str.startswith('PMC'):
-            # Likely a DOI
-            metadata.doi = id_str
+        elif id_type and id_type.lower() == 'doi':
+            metadata.doi = id_str.strip()
     
     # Store the first PMC ID (if any) for backward compatibility
     if pmcids:

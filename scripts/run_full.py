@@ -58,54 +58,108 @@ print("="*80)
 # ============================================================================
 
 # Broad aging query - verified to return exactly 46,351 results
-query = """((“aging"[tiab] OR "ageing"[tiab] OR "senescence"[tiab] OR "longevity"[tiab]) AND
-  (“Hallmark*”[ti])
+# queries =["""((“aging"[ti] OR "ageing"[ti] OR "senescence"[ti] OR "longevity"[ti]) AND
+#   ( model[ti])
+# NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
+#   NOT ("healthy aging"[tiab] OR wellbeing[tiab] OR "public health"[tiab])
+#   NOT ("religion"[tiab])
+#   NOT ("Cosmetics"[mh])
+#  NOT ("Skin"[mh] OR "Dermatology"[mh])
+# )"""]
+
+# QUERIES_SUFFIX = """ AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab])
+# AND ( "aging"[Mesh] OR aging[tiab] AND “Aging"[Majr] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])
+# NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
+#   NOT ( wellbeing[tiab] OR "public health"[tiab])
+#   NOT ("religion"[tiab])
+#   NOT ("Cosmetics"[mh])
+#  NOT ("Skin"[mh] OR "Dermatology"[mh])
+# NOT ("cancer"[TI] OR "ovarian"[TI] OR "liver"[TI] OR "kidne*"[TI] OR "skin"[TI] OR "religion"[TI] OR "enjoyment"[TI])"""
+
+# QUERY_RUN_NAMES = ["aging_text_model"]  # Descriptive name for query-based run
+
+# queries =  [
+#     '("mutation accumulation" OR "selection shadow" OR "late-acting" OR medawar[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("antagonistic pleiotropy") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("disposable soma" AND "somatic maintenance"[tiab] OR kirkwood[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '(phenoptosis OR "programmed death" OR "group selection" OR "kin selection") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("soma"[tiab] OR "evolvable soma") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("pathogen control") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("spandrel"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("intergenerational transfer*" OR "inclusive fitness") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("danaid"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("free radical theory") AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("somatic dna damage"[tiab] OR "somatic mutation"[tiab] OR "genomic instability"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("cross-linking theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("error catastrophe theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("Protein Damage") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("mitochondrial theory of aging") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("waste accumulation") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("Telomere Theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("codon restriction theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("immunological theory" OR "immunosenescence" OR "inflammaging") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("hyperfunction theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("developmental theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("stem cell exhaustion"[tiab] OR "stem cell decline"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("dysdifferentiation") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("information theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("epigenetic drift" OR "epigenetic damage") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("epigenetic clock") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '(morphostasis[tiab] OR "morphostatic"[tiab]) AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '"rate of living" AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("energy consumption") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+# '("energy consumption") AND (theory OR theories OR hypothese* OR hypothesi* )  AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("thermodynamic theory" OR "dissipation theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("hallmarks of aging"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("disengagement theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("continuity theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("modernization theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("age stratification theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
+#     '("subculture theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])'
+# ]
+queries =['("Aging/physiology"[MAJR]) and ("ageing"[tiab] or "aging"[tiab])']
+
+
+
+
+QUERIES_SUFFIX = """ AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab])
+AND ( "aging"[Mesh] OR aging[tiab] AND “Aging"[Majr] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])
 NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
-  NOT ("healthy aging"[tiab] OR wellbeing[tiab] OR "public health"[tiab])
+  NOT ( wellbeing[tiab] OR "public health"[tiab])
   NOT ("religion"[tiab])
   NOT ("Cosmetics"[mh])
  NOT ("Skin"[mh] OR "Dermatology"[mh])
-NOT
-(“cancer”[TI] OR “ovarian”[TI] OR “liver”[TI] OR “kidne*”[TI] OR “skin”[TI] OR “religion”[TI] OR “enjoyment”[TI]
-)
-)"""
+NOT ("cancer"[TI] OR "ovarian"[TI] OR "liver"[TI] OR "kidne*"[TI] OR "skin"[TI] OR "religion"[TI] OR "enjoyment"[TI])"""
 
-# Custom output directory (optional)
-# Default: None (uses 'paper_collection/data')
-# Examples:
-#   - Relative path: 'aging_theories_collection'
-#   - Absolute path: '/Users/diana/Documents/my_papers'
+QUERY_RUN_NAME = 'mesh_aging' # Descriptive name for query-based run
+
+USE_SUFFIX=False
 OUTPUT_DIR = None  # Set to custom path or leave as None for default
-
+CHECK_NUM = 60000
 # ============================================================================
 # RUN COLLECTION
 # ============================================================================
 
 try:
-    # Collect papers
-    print("Starting paper collection...")
-    print(f"Expected results: 46,351 papers")
-    collect_papers(
-        query=query, 
-        max_results=50000,  # Set high enough to capture all 46,351 results
-        use_threading=True,  # Enable parallel processing for much faster execution
-        output_dir=OUTPUT_DIR,
-        query_description="hallmarks_of_aging"
-    )
+    for query in queries:
+        query_run_name = QUERY_RUN_NAME
+        # Collect papers
+        print("Starting paper collection...")
+        collect_papers(
+            query=query+QUERIES_SUFFIX if USE_SUFFIX else query, 
+            max_results=60000,  # Set high enough to capture all 46,351 results
+            use_threading=True,  # Enable parallel processing for much faster execution
+            output_dir=OUTPUT_DIR,
+            query_description=query_run_name,
+            check_num=CHECK_NUM
+        )
 
-    # Print results location
-    if OUTPUT_DIR:
-        base_dir = OUTPUT_DIR if os.path.isabs(OUTPUT_DIR) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), OUTPUT_DIR)
+        # Print results location
+        base_dir = OUTPUT_DIR if OUTPUT_DIR and os.path.isabs(OUTPUT_DIR) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), OUTPUT_DIR or 'paper_collection')
         print("\n" + "="*60)
         print("Collection completed! Check the results:")
         print(f"  - Database: {base_dir}/data/papers.db")
         print(f"  - JSON export: {base_dir}/data/papers_export.json")
-        print("="*60)
-    else:
-        print("\n" + "="*60)
-        print("Collection completed! Check the results:")
-        print("  - Database: ./paper_collection/data/papers.db")
-        print("  - JSON export: ./paper_collection/data/papers_export.json")
         print("="*60)
 
 finally:

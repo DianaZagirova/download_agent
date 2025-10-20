@@ -8,6 +8,7 @@ import json
 import threading
 from typing import List, Optional, Dict
 from datetime import datetime
+from pathlib import Path
 
 from .models import PaperMetadata, CollectionStats
 from .config import DATABASE_PATH
@@ -69,9 +70,24 @@ class PaperDatabase:
                     collection_date TEXT,
                     openalex_retrieved INTEGER,
                     parsing_status TEXT,
-                    query_id INTEGER
+                    query_id INTEGER,
+                    embedding BLOB,
+                    YAKE_keywords TEXT,
+                    source TEXT DEFAULT 'PubMed'
                 )
             """)
+            
+            # Migration: Add source column to existing databases
+            try:
+                cursor.execute("SELECT source FROM papers LIMIT 1")
+            except:
+                # Column doesn't exist, add it and set all existing papers to PubMed
+                print("🔄 Migrating database: Adding 'source' column...")
+                cursor.execute("ALTER TABLE papers ADD COLUMN source TEXT DEFAULT 'PubMed'")
+                cursor.execute("UPDATE papers SET source = 'PubMed' WHERE source IS NULL")
+                self.conn.commit()
+                print("✓ Migration complete: All existing papers marked as 'PubMed'")
+            
             
             # Collection runs table
             cursor.execute("""
@@ -115,9 +131,19 @@ class PaperDatabase:
         try:
             with self._lock:
                 cursor = self.conn.cursor()
+                # Use explicit column names for schema flexibility
+                # This way, adding new columns won't break existing code
                 cursor.execute("""
-                    INSERT OR REPLACE INTO papers VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    INSERT OR REPLACE INTO papers (
+                        pmid, pmcid, doi, title, abstract, full_text, full_text_sections,
+                        mesh_terms, keywords, authors, year, date_published, journal,
+                        is_full_text_pmc, oa_url, primary_topic, topic_name, topic_subfield,
+                        topic_field, topic_domain, citation_normalized_percentile,
+                        cited_by_count, fwci, collection_date, openalex_retrieved,
+                        parsing_status, query_id, embedding, YAKE_keywords, source
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                 """, (
                     metadata.pmid,
@@ -146,9 +172,11 @@ class PaperDatabase:
                     metadata.fwci,
                     metadata.collection_date,
                     1 if metadata.openalex_retrieved else 0,
-                    getattr(metadata, 'parsing_status', None),  # Add parsing_status (may not exist on old metadata)
+                    getattr(metadata, 'parsing_status', None),  # May not exist on old metadata
                     metadata.query_id,
-                    getattr(metadata, 'embedding', None)  # Add embedding (BLOB, may not exist on old metadata)
+                    getattr(metadata, 'embedding', None),  # BLOB, may not exist on old metadata
+                    getattr(metadata, 'YAKE_keywords', None),  # May not exist on old metadata
+                    getattr(metadata, 'source', 'PubMed')  # Source field
                 ))
                 self.conn.commit()
             return True
@@ -182,10 +210,61 @@ class PaperDatabase:
         Returns:
             True if paper exists, False otherwise
         """
+        if not pmid:
+            return False
+            
         with self._lock:
             cursor = self.conn.cursor()
             cursor.execute("SELECT 1 FROM papers WHERE pmid = ? LIMIT 1", (pmid,))
             return cursor.fetchone() is not None
+    
+    def paper_exists_by_doi(self, doi: str) -> bool:
+        """
+        Check if a paper exists in the database by DOI.
+        
+        Args:
+            doi: DOI of the paper
+            
+        Returns:
+            True if paper exists, False otherwise
+        """
+        if not doi:
+            return False
+        
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT 1 FROM papers WHERE doi = ? LIMIT 1", (doi,))
+            return cursor.fetchone() is not None
+    
+    def paper_needs_enrichment(self, identifier: str) -> tuple[bool, Optional[PaperMetadata]]:
+        """
+        Check if a paper needs enrichment (missing abstract or full text).
+        
+        Args:
+            identifier: PMID or DOI
+            
+        Returns:
+            Tuple of (needs_enrichment, metadata)
+            - needs_enrichment: True if paper exists but is missing abstract or full text
+            - metadata: PaperMetadata object if paper exists, None otherwise
+        """
+        # Try to get paper by PMID first, then by DOI
+        paper = self.get_paper(identifier)
+        if not paper and identifier:
+            paper = self.get_paper_by_doi(identifier)
+        
+        if not paper:
+            return (False, None)  # Paper doesn't exist
+        
+        # Check if paper needs enrichment
+        needs_enrichment = (
+            not paper.abstract or 
+            not paper.full_text or
+            paper.abstract.strip() == "" or
+            paper.full_text is None
+        )
+        
+        return (needs_enrichment, paper)
     
     def get_paper(self, pmid: str) -> Optional[PaperMetadata]:
         """
@@ -197,13 +276,39 @@ class PaperDatabase:
         Returns:
             PaperMetadata object or None if not found
         """
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM papers WHERE pmid = ?", (pmid,))
-        row = cursor.fetchone()
+        if not pmid:
+            return None
+            
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM papers WHERE pmid = ?", (pmid,))
+            row = cursor.fetchone()
+            
+            if row:
+                return self._row_to_metadata(row)
+            return None
+    
+    def get_paper_by_doi(self, doi: str) -> Optional[PaperMetadata]:
+        """
+        Retrieve a paper by DOI.
         
-        if row:
-            return self._row_to_metadata(row)
-        return None
+        Args:
+            doi: DOI of the paper
+            
+        Returns:
+            PaperMetadata object or None if not found
+        """
+        if not doi:
+            return None
+        
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM papers WHERE doi = ?", (doi,))
+            row = cursor.fetchone()
+            
+            if row:
+                return self._row_to_metadata(row)
+            return None
     
     def get_papers_without_fulltext(self) -> List[PaperMetadata]:
         """Get all papers that don't have full text from PMC"""
@@ -229,11 +334,12 @@ class PaperDatabase:
     def add_failed_doi(self, doi: str, pmid: str, reason: str, timestamp: str):
         """Add a DOI to the failed list"""
         try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                INSERT OR REPLACE INTO failed_dois VALUES (?, ?, ?, ?)
-            """, (doi, pmid, reason, timestamp))
-            self.conn.commit()
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO failed_dois VALUES (?, ?, ?, ?)
+                """, (doi, pmid, reason, timestamp))
+                self.conn.commit()
         except Exception as e:
             print(f"Error adding failed DOI {doi}: {str(e)}")
     
@@ -274,12 +380,13 @@ class PaperDatabase:
         self.conn.commit()
         return cursor.lastrowid
     
-    def export_to_json(self, output_path: str = None) -> str:
+    def export_to_json(self, output_path: str = None, compact: bool = True) -> str:
         """
         Export all papers to JSON file.
         
         Args:
             output_path: Path to output JSON file
+            compact: If True, use compact JSON (no indentation, 50-70% smaller and faster)
             
         Returns:
             Path to the exported file
@@ -289,13 +396,19 @@ class PaperDatabase:
             db_dir = Path(self.db_path).parent
             output_path = db_dir / "papers_export.json"
         
+        print(f"Exporting papers to JSON (this may take a while for large datasets)...")
         papers = self.get_all_papers()
         papers_dict = [paper.to_dict() for paper in papers]
         
+        # Use compact format by default (no indentation) for speed and size
+        # With 50k papers: compact=~1GB, indent=2.4GB (2.4x larger!)
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(papers_dict, f, indent=2, ensure_ascii=False)
+            if compact:
+                json.dump(papers_dict, f, ensure_ascii=False, separators=(',', ':'))
+            else:
+                json.dump(papers_dict, f, indent=2, ensure_ascii=False)
         
-        print(f"Exported {len(papers)} papers to {output_path}")
+        print(f"✓ Exported {len(papers)} papers to {output_path}")
         return str(output_path)
     
     def export_failed_dois_to_file(self, output_path: str = None, format: str = 'json') -> str:
@@ -440,7 +553,8 @@ class PaperDatabase:
             fwci=row['fwci'],
             collection_date=row['collection_date'],
             openalex_retrieved=bool(row['openalex_retrieved']),
-            query_id=row['query_id'] if 'query_id' in row.keys() else None
+            query_id=row['query_id'] if 'query_id' in row.keys() else None,
+            source=row['source'] if 'source' in row.keys() else 'PubMed'
         )
     
     def insert_query(self, query_text: str, description: str = None) -> int:
