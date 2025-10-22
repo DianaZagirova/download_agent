@@ -56,9 +56,9 @@ def run_demonstration():
     
     # Define demonstration queries
     demo_queries = [
-        "(\"theory of aging\"[Title]) AND (\"Aging\"[Mesh]) AND (2020:2025[dp]) AND (full text[sb])",
-        "(\"aging\"[tiab] AND \"theory\"[tiab])",
-        "(\"senescence\"[tiab] AND \"mechanism\"[tiab])"
+        "(theory of aging[Title]) AND (Aging[Mesh]) AND (2015:2022[dp]) AND (full text[sb])",
+        "(aging[tiab] AND theory[tiab])",
+        "(senescence[tiab] AND mechanism[tiab])"
     ]
     
     # Create timestamp for this run

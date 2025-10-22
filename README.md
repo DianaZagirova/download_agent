@@ -37,6 +37,8 @@ pip install -r requirements.txt
 
 # Optional helper
 bash setup.sh
+
+copy .env.example and add variables
 ```
 
 ### 2. Run the Demo

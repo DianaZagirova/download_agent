@@ -7,16 +7,8 @@ import os
 # NCBI/PubMed Configuration - Multiple credentials for load distribution
 NCBI_CREDENTIALS = [
     {
-        "email": "diana.z@insilicomedicine.com",
-        "api_key": "9f5d0d5238d7eb65e0526c84d79a5b945d08"
-    },
-    {
-        "email": "kudrjavcev.aleks.2011@post.bio.msu.ru",
-        "api_key": "d8cd10c6d3c7feba50589cfda225cebcf309"
-    },
-    {
-        "email": "eremin@easyomics.com",
-        "api_key": "eae5b137e80f6d305bc1c4774ef0160cee08"
+        "email": os.getenv("ENTREZ_EMAIL", "sample_email@sample.com"),
+        "api_key": os.getenv("ENTREZ_API_KEY", "sample_api_key")
     }
 ]
 
