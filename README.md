@@ -1,52 +1,58 @@
-# Aging Theories Literature Collection System
 
-## Project Overview
+# 🧬 Aging Theories Literature Collection System
 
-This repository implements **Step 1** of a multi-phase project to systematically collect and classify aging theories from scientific literature. The primary goal is to achieve maximum recall in identifying aging-related theoretical papers, prioritizing comprehensive coverage over precision at this initial stage.
+Collect Stage 1 of a multi-phase effort to systematically **discover, download, and classify scientific theories of aging**. This repository focuses on maximizing recall so future stages can curate, annotate, and analyze a truly comprehensive corpus.
 
-### Context and Importance
+## 📌 Overview
 
-Aging research encompasses numerous theoretical frameworks spanning evolutionary biology, molecular mechanisms, and systems-level approaches. Traditional literature searches often miss relevant papers due to inconsistent terminology, interdisciplinary nature, and the breadth of aging-related research. This system addresses these challenges through AI-powered query generation and multi-source data integration.
+- **Stage 1 Goal:** Capture as many aging-theory papers as possible, accepting lower precision in exchange for high recall.
+- **Why it matters:** Aging research spans evolutionary biology, biomedicine, systems science, and more. Important theories are scattered across disciplines and rarely share consistent terminology. Without a broad-first approach, foundational work is easy to miss.
+- **Guiding principle:** Cast a wide net now, refine later. Subsequent stages will add filtering, classification, and expert review.
 
-**Why High Recall Matters**: At this stage, we prioritize catching all potentially relevant aging-theory literature, even if it means including some less relevant papers. This comprehensive approach ensures we don't miss important theoretical contributions that might be excluded by overly restrictive search criteria.
+### Data Coverage Strategy
 
-## Quick Start
+1. **Diverse sources** provide broad disciplinary reach:
+   - **PubMed:** Biomedical and life sciences literature
+   - **arXiv:** Theoretical and computational biology preprints
+   - **bioRxiv & medRxiv:** Rapidly evolving preprint ecosystems
+   - **OpenAlex:** Citation, field tags, and enrichment metadata
+   - **Europe PMC:** Additional full-text biomedical coverage
+2. **Diverse queries** surface terminology variants, synonyms, and adjacent concepts to minimize blind spots.
 
-### 1. Environment Setup
+> 📝 **Status:** The current pipeline has already surfaced **108,000+ unique records**, forming a rich base for downstream filtering and analysis.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Set Up
 
 ```bash
-# Clone the repository
 git clone <repository-url>
 cd download_papers_pubmed
 
-# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-or use setup.sh to set up env
-
-# Install dependencies
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# Optional helper
+bash setup.sh
 ```
 
-### 2. Run Demonstration
+### 2. Run the Demo
 
 ```bash
-# Run the demo script
 python demo.py
 ```
 
-The demo will:
-- Execute 3 diverse aging research queries
-- Collect 150 papers total (50 per query)
-- Save results to `paper_collection_test/data/test_papers.db`
-- Export data to `paper_collection_test/data/test_papers_export.json`
-- Display collection statistics and performance metrics
+The demo executes three representative queries, returning roughly 150 papers and exporting:
+- **SQLite database:** `paper_collection_test/data/test_papers.db`
+- **JSON snapshot:** `paper_collection_test/data/test_papers_export.json`
+- **Basic stats and logs:** stored under `paper_collection_test/data/`
 
-### 3. Custom Query Example
+### 3. Launch a Custom Crawl
 
 ```bash
-# Run a specific query for recent aging theories
 python scripts/run_full.py \
   --queries "(\"theory of aging\"[Title]) AND (\"Aging\"[Mesh]) AND (2020:2025[dp]) AND (full text[sb])" \
   --query-run-name "recent_aging_theories" \
@@ -54,163 +60,61 @@ python scripts/run_full.py \
   --test-db
 ```
 
-**Results Location**:
-- Database: `paper_collection_test/data/test_papers.db`
-- JSON Export: `paper_collection_test/data/test_papers_export.json`
-- Logs: `paper_collection_test/logs/`
+Outputs land under `paper_collection_test/data/` in both SQLite and JSON formats, making it easy to inspect results or feed them into notebooks.
 
-## How the System Works
+---
 
-### Step 1: AI-Powered Query Generation
+## 🧐 How It Works
 
-The system begins with deep analysis of the aging research landscape to generate comprehensive PubMed search queries. This involves:
+### Top-Down Retrieval Pipeline
 
-- **Theory-Specific Queries**: Individual queries for each major aging theory (mutation accumulation, antagonistic pleiotropy, disposable soma, etc.)
-- **Domain Coverage**: Queries spanning evolutionary, molecular, systems, and intervention-based approaches
-- **Terminology Analysis**: Systematic exploration of aging-related terminology and synonyms
+1. **AI- and expert-informed query generation** covers evolutionary, molecular, systems, intervention-based, and emerging aging theories while adapting synonyms and cross-domain terminology. Queries are iteratively expanded by an AI agent that reviews prior outputs to surface gaps.
+2. **Iterative refinement** filters obvious false positives (for example, cosmetic dermatology) based on hit analysis and human feedback.
+3. **Multi-source harvesting** gathers metadata and full records from PubMed, arXiv, medRxiv, bioRxiv, OpenAlex, and Europe PMC.
+4. **Structured storage & export** normalizes data into SQLite and JSON, preserving provenance and metadata for reproducibility.
 
-### Step 2: Iterative Query Refinement
+### Technical Highlights
 
-AI feedback mechanisms continuously refine queries for optimal specificity and relevance:
+- **Parallel multi-threaded fetching** keeps throughput high even for large query batches.
+- **API-aware caching and rate limiting** minimize retries and respect provider policies.
+- **Data integrity checks** validate DOIs, track provenance, and deduplicate records.
+- **Reproducible runs** via pinned dependencies, structured logs, and consistent output formats.
 
-- **Hit Count Monitoring**: Queries are evaluated based on PubMed result counts
-- **Relevance Assessment**: Results are analyzed for theoretical content
-- **Query Optimization**: Overly broad queries are refined, overly narrow queries are expanded
-- **Exclusion Filtering**: Non-relevant domains (cosmetics, dermatology) are systematically excluded
+---
 
-### Step 3: Multi-Source Data Extraction
+## 🔍 Query Design Examples
 
-Automated search and extraction from multiple scholarly databases:
+- **Broad coverage:** aging, longevity, senescence, life-history frameworks.
+- **Theory spotlights:** mutation accumulation, antagonistic pleiotropy, disposable soma, hallmarks of aging, mitochondrial/free-radical models.
+- **Interventions & model organisms:** caloric restriction, pharmacological and genetic interventions, C. elegans, Drosophila, mice, and more.
 
-- **PubMed**: Core metadata, abstracts, and MeSH terms
-- **OpenAlex**: Citation counts, research fields, and institutional affiliations
-- **PMC**: Full-text articles when available
-- **Europe PMC**: Alternative full-text sources for comprehensive coverage
+The complete set of AI-generated queries (40+ theoretical frameworks) lives in `data/queries_used.json`.
 
-### Step 4: Efficient Data Storage
+---
 
-Results are stored in a well-structured, fast-access database:
-
-- **SQLite Database**: Optimized schema for complex queries and relationships
-- **JSON Export**: Portable data format for analysis and sharing
-- **Metadata Tracking**: Complete provenance and quality metrics
-- **Incremental Updates**: Support for ongoing collection and refinement
-
-## Query Strategy
-
-The system employs a multi-layered query approach covering diverse conceptual angles:
-
-### Broad Thematic Queries
-- General aging and longevity research
-- Senescence mechanisms and theories
-- Evolutionary perspectives on aging
-
-### Theory-Specific Queries
-- Mutation accumulation theory
-- Antagonistic pleiotropy
-- Disposable soma theory
-- Free radical theory
-- Mitochondrial theory of aging
-- Hallmarks of aging framework
-
-### Intervention-Based Queries
-- Calorie restriction studies
-- Pharmacological interventions
-- Lifestyle and environmental factors
-
-### Model Organism Queries
-- C. elegans aging research
-- Drosophila longevity studies
-- Mouse aging models
-
-**Complete Query Library**: See `data/queries_used.json` for the full collection of AI-generated queries covering 40+ specific aging theories and frameworks.
-
-## Technical Architecture
-
-### Performance Features
-- **Parallel Processing**: Multi-threaded paper processing for efficiency
-- **Intelligent Caching**: Prevents redundant API calls
-- **Rate Limiting**: Respects API limits with exponential backoff
-- **Error Recovery**: Robust handling of network and API issues
-
-### Data Quality Assurance
-- **DOI Validation**: Ensures data integrity and prevents duplicates
-- **Content Verification**: Validates full-text availability and quality
-- **Source Tracking**: Maintains complete data provenance
-- **Quality Metrics**: Comprehensive statistics on collection success
-
-### Reproducibility
-- **Virtual Environment**: Isolated Python environment with pinned dependencies
-- **Complete Logging**: Detailed execution logs for debugging and analysis
-- **Version Control**: Git-based tracking of all changes and configurations
-- **Documentation**: Comprehensive setup and usage instructions
-
-## Usage Examples
-
-### Basic Collection
-```bash
-python scripts/run_full.py \
-  --queries "(\"aging\"[tiab] AND theory[tiab])" \
-  --query-run-name "aging_theories" \
-  --max-results 5000
-```
-
-### Advanced Collection with Custom Parameters
-```bash
-python scripts/run_full.py \
-  --queries "(\"hallmarks of aging\"[tiab])" "(\"senescence\"[tiab] AND mechanism[tiab])" \
-  --queries-suffix "AND (Aging[MeSH] OR Geriatrics[MeSH])" \
-  --query-run-name "comprehensive_study" \
-  --max-results 10000 \
-  --output-dir /path/to/custom/output
-```
-
-### Test Database Mode
-```bash
-python scripts/run_full.py \
-  --queries "(\"calorie restriction\"[tiab] AND aging[tiab])" \
-  --query-run-name "intervention_study" \
-  --test-db \
-  --max-results 1000
-```
-
-## Project Structure
+## 🗂️ Repository Layout
 
 ```
 download_papers_pubmed/
-├── src/                          # Core modules
-│   ├── pubmed_extractor.py      # PubMed API integration
-│   ├── openalex_extractor.py    # OpenAlex enrichment
-│   ├── database.py              # SQLite operations
-│   └── models.py                # Data models
-├── scripts/                      # Execution scripts
-│   ├── run_full.py              # Main collection script
-│   └── demo.py                  # Demonstration script
-├── data/                         # Query definitions
-│   └── queries_used.json        # AI-generated queries
-├── paper_collection/            # Main output directory
-├── paper_collection_test/       # Test database output
-└── requirements.txt             # Dependencies
+├── src/
+│   ├── pubmed_extractor.py
+│   ├── openalex_extractor.py
+│   ├── database.py
+│   └── models.py
+├── scripts/
+│   ├── run_full.py
+│   └── demo.py
+├── data/
+│   └── queries_used.json
+├── paper_collection/
+├── paper_collection_test/
+└── requirements.txt
 ```
 
-## Next Steps
+---
 
-This collection system represents the foundation for subsequent analysis phases:
+## 🛣️ CODE FOR THE NEXT STEP 
 
-1. **Text Analysis**: Natural language processing of collected abstracts and full-text
-2. **Theory Classification**: Machine learning-based categorization of aging theories
-3. **Trend Analysis**: Temporal analysis of theoretical developments
-4. **Network Analysis**: Citation and co-occurrence analysis of theoretical concepts
+- **Stage 2:** Full-text retrieval and enrichment – see https://github.com/DianaZagirova/scihub_api
 
-## Dependencies
-
-- Python 3.8+
-- biopython==1.83
-- requests==2.31.0
-- tqdm==4.66.1
-- beautifulsoup4==4.12.2
-- PyPDF2==3.0.1
-- lxml>=4.6.0
-- jsonschema>=4.0.0
-
-See `requirements.txt` for complete dependency list with version specifications.
+Contributions and issue reports that improve search coverage, data quality, or documentation are warmly welcomed.
