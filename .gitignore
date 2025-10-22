@@ -63,3 +63,4 @@ scripts/test_scripts/
 **-wal
 legacy/
 /data/papers_export.json
+download_papers_pubmed.git/
