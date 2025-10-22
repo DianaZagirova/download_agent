@@ -18,11 +18,11 @@ from main import collect_papers_from_dois
 #     "10.1016/j.arr.2016.06.005",
 #     "10.1177/0894318417724459"
 # ]
-DOIS = ['10.3390/metabo14070355']
+# DOIS = ['10.20463/jenb.2017.0027']
 
 # Option 2: Load DOIs from a file (one DOI per line)
-DOI_FILE = None  # Set to file path, e.g., "dois.txt"
-
+DOI_FILE = "data/dois_validation/dois_validation3.txt"
+# DOI_FILE=None
 # Custom output directory (optional)
 # Default: None (uses 'paper_collection/data')
 # Examples:

@@ -1,0 +1,107 @@
+{
+  "queries": [
+    {
+      "id": "query_1",
+      "name": "Query 1",
+      "query": "",
+      "description": "Empty query"
+    },
+    {
+      "id": "query_2",
+      "name": "broad_aging",
+      "query": "(\"aging\"[tiab] OR \"ageing\"[tiab] OR \"senescence\"[tiab] OR \"longevity\"[tiab]) AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR \"ultimate cause\"[tiab] OR \"proximate cause\"[tiab] OR \"evolution*\"[tiab]) NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR \"facial\"[tiab] OR dermatol*[tiab]) NOT (\"healthy aging\"[tiab] OR wellbeing[tiab] OR \"public health\"[tiab]) NOT (\"religion\"[tiab]) NOT (\"Cosmetics\"[mh]) NOT (\"Skin\"[mh] OR \"Dermatology\"[mh])",
+      "description": "Broad aging theories query"
+    },
+    {
+      "id": "query_3",
+      "name": "hallmarks_of_aging",
+      "query": "((\"aging\"[tiab] OR \"ageing\"[tiab] OR \"senescence\"[tiab] OR \"longevity\"[tiab]) AND (\"Hallmark*\"[ti]) NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR \"facial\"[tiab] OR dermatol*[tiab]) NOT (\"healthy aging\"[tiab] OR wellbeing[tiab] OR \"public health\"[tiab]) NOT (\"religion\"[tiab]) NOT (\"Cosmetics\"[mh]) NOT (\"Skin\"[mh] OR \"Dermatology\"[mh]) NOT (\"cancer\"[TI] OR \"ovarian\"[TI] OR \"liver\"[TI] OR \"kidne*\"[TI] OR \"skin\"[TI] OR \"religion\"[TI] OR \"enjoyment\"[TI]))",
+      "description": "Hallmarks of aging query"
+    },
+    {
+      "id": "query_4",
+      "name": "interventions",
+      "query": "",
+      "description": "Interventions - in separate doc"
+    },
+    {
+      "id": "query_5",
+      "name": "aging_models",
+      "query": "((\"aging\"[ti] OR \"ageing\"[ti] OR \"senescence\"[ti] OR \"longevity\"[ti]) AND (model[ti]) NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR \"facial\"[tiab] OR dermatol*[tiab]) NOT (\"healthy aging\"[tiab] OR wellbeing[tiab] OR \"public health\"[tiab]) NOT (\"religion\"[tiab]) NOT (\"Cosmetics\"[mh]) NOT (\"Skin\"[mh] OR \"Dermatology\"[mh]))",
+      "description": "Aging models query"
+    },
+    {
+      "id": "query_theory_keywords",
+      "name": "theory_keywords",
+      "description": "Multiple theory-specific queries",
+      "queries": [
+        "(\"mutation accumulation\" OR \"selection shadow\" OR \"late-acting\" OR medawar[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"antagonistic pleiotropy\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"disposable soma\" AND \"somatic maintenance\"[tiab] OR kirkwood[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(phenoptosis OR \"programmed death\" OR \"group selection\" OR \"kin selection\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"soma\"[tiab] OR \"evolvable soma\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"pathogen control\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"spandrel\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"intergenerational transfer*\" OR \"inclusive fitness\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"danaid\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"free radical theory\") AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR \"ultimate cause\"[tiab] OR \"proximate cause\"[tiab] OR \"evolution*\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"somatic dna damage\"[tiab] OR \"somatic mutation\"[tiab] OR \"genomic instability\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"cross-linking theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"error catastrophe theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"Protein Damage\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"mitochondrial theory of aging\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"waste accumulation\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"Telomere Theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"codon restriction theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"immunological theory\" OR \"immunosenescence\" OR \"inflammaging\") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"hyperfunction theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"developmental theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"stem cell exhaustion\"[tiab] OR \"stem cell decline\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"dysdifferentiation\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"information theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"epigenetic drift\" OR \"epigenetic damage\") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"epigenetic clock\") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(morphostasis[tiab] OR \"morphostatic\"[tiab]) AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "\"rate of living\" AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"energy consumption\") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"energy consumption\") AND (theory OR theories OR hypothese* OR hypothesi* )  AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"thermodynamic theory\" OR \"dissipation theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"hallmarks of aging\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"disengagement theory\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"continuity theory\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"modernization theory\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"age stratification theory\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(\"subculture theory\"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])",
+        "(inflammaging[tiab] OR immunosenescence[tiab])",
+        "(\"force of selection\") and (\"aging\" OR \"ageing\")",
+        "(species[tiab] AND (lifespan[tiab] OR life span[tiab])) and (\"aging\" OR \"ageing\")",
+        "(\"network theory\"[tiab]) and (\"aging\" OR \"ageing\")",
+        "(\"trade-off\"[tiab]) and (\"aging\" OR \"ageing\")"
+      ]
+    },
+    {
+      "id": "query_6",
+      "name": "missing_cases",
+      "description": "Missing cases - intervention_missing and grand_aging_missing",
+      "query": "(\"calorie\" AND \"restriction\") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR \"Cellular Senescence\"[Majr] OR \"Aging/physiology\"[Majr])"
+    },
+    {
+      "id": "query_grand_aging_repeat",
+      "name": "grand_aging_repeat",
+      "query": "((aging[Title/Abstract] OR ageing[Title/Abstract]) AND (theory[Title/Abstract] OR theories[Title/Abstract] OR hypothesis[Title/Abstract] OR hypotheses[Title/Abstract] OR paradigm[Title/Abstract] OR paradigms[Title/Abstract]) AND (Aging[MeSH] OR Geriatrics[MeSH]) NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR dermatol*[tiab]) NOT (\"healthy aging\"[tiab] OR wellbeing[tiab] OR \"public health\"[tiab]) NOT (\"religion\"[tiab]) NOT (\"Cosmetics\"[mh]) NOT (\"Dermatology\"[mh]))",
+      "description": "Grand aging repeat query"
+    },
+    {
+      "id": "query_7",
+      "name": "lifespan",
+      "query": "(\"life span\"[tiab] OR lifespan[tiab]) AND (\"aging\"[tiab] OR \"ageing\"[tiab] OR \"senescence\"[tiab] OR \"longevity\"[tiab] ) AND (theory OR theories OR hypothes* OR framework* OR paradigm* OR \"ultimate cause\" OR \"proximate cause\" OR \"evolution*\")",
+      "description": "Lifespan query"
+    },
+    {
+      "id": "query_8",
+      "name": "mesh_aging",
+      "query": "(\"Aging/physiology\"[MAJR]) and (\"ageing\"[tiab] or \"aging\"[tiab])",
+      "description": "MeSH aging query"
+    }
+  ]
+}

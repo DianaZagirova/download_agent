@@ -55,5 +55,10 @@ docs/
 
 #DB test
 paper_collection_test/
+aging_theories_collection/
 
 scripts/test_scripts/
+**-shm
+**-wal
+legacy/
+/data/papers_export.json

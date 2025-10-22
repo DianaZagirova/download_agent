@@ -2,9 +2,14 @@
 """
 Full collection script for broad aging theories and frameworks
 Expected results: 46,351 papers
+
+Usage:
+    python run_full.py --queries "query1" "query2" --queries-suffix "suffix" --query-run-name "run_name"
+    python run_full.py --queries "(\"Aging/physiology\"[MAJR]) and (\"ageing\"[tiab] or \"aging\"[tiab])" --queries-suffix "AND (theory[tiab] OR theories[tiab])" --query-run-name "mesh_aging"
 """
 import sys
 import os
+import argparse
 from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,88 +59,114 @@ print(f"Error log: {stderr_log}")
 print("="*80)
 
 # ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description='Full collection script for broad aging theories and frameworks',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python run_full.py --queries "(\"Aging/physiology\"[MAJR]) and (\"ageing\"[tiab] or \"aging\"[tiab])" --queries-suffix "AND (theory[tiab] OR theories[tiab])" --query-run-name "mesh_aging"
+  
+  python run_full.py --queries "query1" "query2" --queries-suffix "suffix" --query-run-name "custom_run"
+        """
+    )
+    
+    parser.add_argument(
+        '--queries',
+        nargs='+',
+        required=True,
+        help='One or more search queries to execute'
+    )
+    
+    parser.add_argument(
+        '--queries-suffix',
+        type=str,
+        default='',
+        help='Suffix to append to all queries (optional)'
+    )
+    
+    parser.add_argument(
+        '--query-run-name',
+        type=str,
+        required=True,
+        help='Descriptive name for the query-based run'
+    )
+    
+    parser.add_argument(
+        '--use-suffix',
+        action='store_true',
+        help='Whether to append the queries suffix to queries'
+    )
+    
+    parser.add_argument(
+        '--output-dir',
+        type=str,
+        default=None,
+        help='Custom output directory (optional)'
+    )
+    
+    parser.add_argument(
+        '--max-results',
+        type=int,
+        default=60000,
+        help='Maximum number of results to collect (default: 60000)'
+    )
+    
+    parser.add_argument(
+        '--check-num',
+        type=int,
+        default=60000,
+        help='Number to check against for validation (default: 60000)'
+    )
+    
+    parser.add_argument(
+        '--test-db',
+        action='store_true',
+        help='Use test database instead of main database (saves to test_papers.db)'
+    )
+    
+    return parser.parse_args()
+
+# Parse command line arguments
+args = parse_arguments()
+
+# ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-# Broad aging query - verified to return exactly 46,351 results
-# queries =["""((“aging"[ti] OR "ageing"[ti] OR "senescence"[ti] OR "longevity"[ti]) AND
-#   ( model[ti])
-# NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
-#   NOT ("healthy aging"[tiab] OR wellbeing[tiab] OR "public health"[tiab])
-#   NOT ("religion"[tiab])
-#   NOT ("Cosmetics"[mh])
-#  NOT ("Skin"[mh] OR "Dermatology"[mh])
-# )"""]
+# Use parsed arguments
+queries = args.queries
+QUERIES_SUFFIX = args.queries_suffix
+QUERY_RUN_NAME = args.query_run_name
+USE_SUFFIX = args.use_suffix
+CHECK_NUM = args.check_num
+MAX_RESULTS = args.max_results
+USE_TEST_DB = args.test_db
 
-# QUERIES_SUFFIX = """ AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab])
-# AND ( "aging"[Mesh] OR aging[tiab] AND “Aging"[Majr] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])
-# NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
-#   NOT ( wellbeing[tiab] OR "public health"[tiab])
-#   NOT ("religion"[tiab])
-#   NOT ("Cosmetics"[mh])
-#  NOT ("Skin"[mh] OR "Dermatology"[mh])
-# NOT ("cancer"[TI] OR "ovarian"[TI] OR "liver"[TI] OR "kidne*"[TI] OR "skin"[TI] OR "religion"[TI] OR "enjoyment"[TI])"""
+# Handle output directory - use test database if requested
+if USE_TEST_DB:
+    # Create test-specific output directory
+    base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'paper_collection_test')
+    OUTPUT_DIR = args.output_dir or base_output_dir
+    print(f"Using TEST DATABASE: {OUTPUT_DIR}")
+else:
+    OUTPUT_DIR = args.output_dir
 
-# QUERY_RUN_NAMES = ["aging_text_model"]  # Descriptive name for query-based run
-
-# queries =  [
-#     '("mutation accumulation" OR "selection shadow" OR "late-acting" OR medawar[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("antagonistic pleiotropy") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("disposable soma" AND "somatic maintenance"[tiab] OR kirkwood[au]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '(phenoptosis OR "programmed death" OR "group selection" OR "kin selection") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("soma"[tiab] OR "evolvable soma") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("pathogen control") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("spandrel"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("intergenerational transfer*" OR "inclusive fitness") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("danaid"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("free radical theory") AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("somatic dna damage"[tiab] OR "somatic mutation"[tiab] OR "genomic instability"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("cross-linking theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("error catastrophe theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("Protein Damage") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("mitochondrial theory of aging") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("waste accumulation") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("Telomere Theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("codon restriction theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("immunological theory" OR "immunosenescence" OR "inflammaging") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("hyperfunction theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("developmental theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("stem cell exhaustion"[tiab] OR "stem cell decline"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("dysdifferentiation") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("information theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("epigenetic drift" OR "epigenetic damage") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("epigenetic clock") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '(morphostasis[tiab] OR "morphostatic"[tiab]) AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '"rate of living" AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("energy consumption") AND (theory OR theories OR hypothese* OR hypothesi*) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-# '("energy consumption") AND (theory OR theories OR hypothese* OR hypothesi* )  AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("thermodynamic theory" OR "dissipation theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("hallmarks of aging"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("disengagement theory") AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("continuity theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("modernization theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("age stratification theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])',
-#     '("subculture theory"[tiab]) AND (aging[tiab] OR ageing[tiab] OR Aging[MeSH] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])'
-# ]
-queries =['("Aging/physiology"[MAJR]) and ("ageing"[tiab] or "aging"[tiab])']
-
-
-
-
-QUERIES_SUFFIX = """ AND (theory[tiab] OR theories[tiab] OR hypothes*[tiab] OR framework*[tiab] OR paradigm*[tiab] OR "ultimate cause"[tiab] OR "proximate cause"[tiab] OR "evolution*"[tiab])
-AND ( "aging"[Mesh] OR aging[tiab] AND “Aging"[Majr] OR Geriatrics[MeSH] OR "Cellular Senescence"[Majr] OR "Aging/physiology"[Majr])
-NOT (cosmetic*[tiab] OR sunscreen*[tiab] OR "facial"[tiab] OR dermatol*[tiab])
-  NOT ( wellbeing[tiab] OR "public health"[tiab])
-  NOT ("religion"[tiab])
-  NOT ("Cosmetics"[mh])
- NOT ("Skin"[mh] OR "Dermatology"[mh])
-NOT ("cancer"[TI] OR "ovarian"[TI] OR "liver"[TI] OR "kidne*"[TI] OR "skin"[TI] OR "religion"[TI] OR "enjoyment"[TI])"""
-
-QUERY_RUN_NAME = 'mesh_aging' # Descriptive name for query-based run
-
-USE_SUFFIX=False
-OUTPUT_DIR = None  # Set to custom path or leave as None for default
-CHECK_NUM = 60000
+# Print configuration
+print("Configuration:")
+print(f"  Queries: {queries}")
+print(f"  Queries Suffix: {QUERIES_SUFFIX}")
+print(f"  Query Run Name: {QUERY_RUN_NAME}")
+print(f"  Use Suffix: {USE_SUFFIX}")
+print(f"  Output Dir: {OUTPUT_DIR or 'default'}")
+print(f"  Max Results: {MAX_RESULTS}")
+print(f"  Check Num: {CHECK_NUM}")
+print(f"  Test Database: {USE_TEST_DB}")
+print("="*80)
 # ============================================================================
 # RUN COLLECTION
 # ============================================================================
@@ -143,11 +174,47 @@ CHECK_NUM = 60000
 try:
     for query in queries:
         query_run_name = QUERY_RUN_NAME
+        
         # Collect papers
         print("Starting paper collection...")
-        collect_papers(
+        
+        # Handle test database by monkey-patching the config after collect_papers sets it
+        if USE_TEST_DB and OUTPUT_DIR:
+            # Store original collect_papers function
+            from main import collect_papers as original_collect_papers
+            from src.config import set_output_directory
+            import src.config
+            
+            def patched_collect_papers(*args, **kwargs):
+                # Call the original function but patch DATABASE_PATH after set_output_directory
+                # We need to patch it right after the output directory is set
+                original_set_output_directory = set_output_directory
+                
+                def patched_set_output_directory(custom_dir):
+                    result = original_set_output_directory(custom_dir)
+                    # Override the database path to use test database
+                    src.config.DATABASE_PATH = os.path.join(result['data_dir'], 'test_papers.db')
+                    print(f"Test database path set to: {src.config.DATABASE_PATH}")
+                    return result
+                
+                # Temporarily replace the function
+                import src.config
+                src.config.set_output_directory = patched_set_output_directory
+                
+                try:
+                    return original_collect_papers(*args, **kwargs)
+                finally:
+                    # Restore original function
+                    src.config.set_output_directory = original_set_output_directory
+            
+            # Use the patched version
+            collect_papers_func = patched_collect_papers
+        else:
+            collect_papers_func = collect_papers
+        
+        collect_papers_func(
             query=query+QUERIES_SUFFIX if USE_SUFFIX else query, 
-            max_results=60000,  # Set high enough to capture all 46,351 results
+            max_results=MAX_RESULTS,  # Use configurable max results
             use_threading=True,  # Enable parallel processing for much faster execution
             output_dir=OUTPUT_DIR,
             query_description=query_run_name,
@@ -156,10 +223,15 @@ try:
 
         # Print results location
         base_dir = OUTPUT_DIR if OUTPUT_DIR and os.path.isabs(OUTPUT_DIR) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), OUTPUT_DIR or 'paper_collection')
+        db_name = "test_papers.db" if USE_TEST_DB else "papers.db"
+        json_name = "test_papers_export.json" if USE_TEST_DB else "papers_export.json"
+        
         print("\n" + "="*60)
         print("Collection completed! Check the results:")
-        print(f"  - Database: {base_dir}/data/papers.db")
-        print(f"  - JSON export: {base_dir}/data/papers_export.json")
+        print(f"  - Database: {base_dir}/data/{db_name}")
+        print(f"  - JSON export: {base_dir}/data/{json_name}")
+        if USE_TEST_DB:
+            print("  - NOTE: Using TEST DATABASE - data saved separately from main collection")
         print("="*60)
 
 finally:

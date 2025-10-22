@@ -1,5 +1,32 @@
+# Core dependencies for AI-Powered Aging Research Collection System
+# Pinned versions for reproducibility
+
+# Scientific computing and data processing
 biopython==1.83
+numpy>=1.24.0,<2.0.0
+
+# HTTP requests and API integration
 requests==2.31.0
+urllib3>=1.26.0,<2.0.0
+
+# Progress bars and user interface
 tqdm==4.66.1
+
+# HTML/XML parsing and text extraction
 beautifulsoup4==4.12.2
+lxml>=4.6.0,<5.0.0
+
+# PDF processing for full-text extraction
 PyPDF2==3.0.1
+
+# Data validation and processing
+jsonschema>=4.0.0,<5.0.0
+
+# Logging and monitoring
+colorlog>=6.0.0,<7.0.0
+
+# Development and testing (optional)
+pytest>=7.0.0,<8.0.0
+pytest-cov>=4.0.0,<5.0.0
+
+# Note: sqlite3 is built into Python 3.x, no installation needed
