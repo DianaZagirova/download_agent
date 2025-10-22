@@ -52,6 +52,7 @@ Thumbs.db
 # Documentation 
 documentation/
 docs/
+paper_collection/data/papers.db
 
 #DB test
 paper_collection_test/
