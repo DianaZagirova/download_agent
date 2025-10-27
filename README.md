@@ -21,6 +21,8 @@ Collect Stage 1 of a multi-phase effort to systematically **discover, download, 
 
 > 📝 **Status:** The current pipeline has already surfaced **108,000+ unique records**, forming a rich base for downstream filtering and analysis.
 
+> ⚠️ **Note on Main Database:** The production database (`paper_collection/data/papers.db`) is excluded from the repository due to its large size (several GB). The database follows the schema documented below and contains 108,000+ papers with full metadata, citations, and full text where available. For testing and examples, use the demo script which creates a separate test database, or see `data/example_papers.json` for sample records.
+
 ---
 
 ## 🚀 Quick Start
@@ -264,6 +266,38 @@ end_time TEXT,
 duration_seconds REAL
 ```
 
+### Main Database Statistics
+
+**Location:** `paper_collection/data/papers.db` (excluded from git due to size)
+
+**Current Statistics:**
+- **Total papers:** 108,000+ unique records
+- **Database size:** ~3-5 GB (varies with full text coverage)
+- **Full text coverage:** ~40-60% of papers have full text from PMC
+- **OpenAlex enrichment:** ~80-90% of papers have citation and topic data
+- **Date range:** Primarily 1950-2024, with focus on recent literature
+- **Queries used:** 40+ specialized queries covering aging theories
+
+**Content Breakdown:**
+```
+Category                    Count       Percentage
+─────────────────────────────────────────────────────
+Papers with abstracts       ~103K       ~95%
+Papers with full text       ~43-65K     ~40-60%
+Papers with DOI             ~92K        ~85%
+Papers with MeSH terms      ~97K        ~90%
+Papers with citations       ~86-97K     ~80-90%
+Papers with topic data      ~86-97K     ~80-90%
+```
+
+**Access Methods:**
+1. **SQLite direct:** Use any SQLite client or Python's `sqlite3` module
+2. **Python API:** Use `PaperDatabase` class from `src/database.py`
+3. **JSON export:** Run `python scripts/run_to_json.py` to export to JSON
+4. **Demo database:** Run `python demo.py` to create a small test database
+
+**Reproduction:** To rebuild the database from scratch, run the collection scripts with the queries from `data/queries_used.json`. Note: Full collection takes several hours and requires NCBI API credentials.
+
 ### Technical Highlights
 
 - **Parallel multi-threaded fetching** keeps throughput high even for large query batches
@@ -311,9 +345,11 @@ download_papers_pubmed/
 │   └── example_papers.json       # Example output: 2 complete paper records
 ├── paper_collection/             # Main output directory
 │   ├── data/                     # Database and JSON exports
+│   │   ├── papers.db             # Main database (108K+ papers, excluded from git)
+│   │   └── papers_export.json   # JSON export (excluded from git)
 │   ├── logs/                     # Execution logs
 │   └── checkpoints/              # Progress checkpoints
-├── paper_collection_test/        # Test database output
+├── paper_collection_test/        # Test database output (demo & testing)
 ├── main.py                       # Main orchestrator
 ├── demo.py                       # Demo script
 ├── requirements.txt              # Python dependencies
