@@ -52,7 +52,11 @@ def safe_ncbi_call(func, *args, **kwargs):
                 print(f"Rate limit hit (429). Rotating credentials...")
                 new_creds = rotate_credentials()
                 Entrez.email = new_creds['email']
-                Entrez.api_key = new_creds['api_key']
+                # Only set API key if it's not a placeholder/sample value
+                if new_creds['api_key'] and not new_creds['api_key'].startswith('sample'):
+                    Entrez.api_key = new_creds['api_key']
+                else:
+                    Entrez.api_key = None  # Use without API key to avoid 400 errors
                 
                 # Exponential backoff
                 backoff_time = RETRY_DELAY * (2 ** attempt)  # 2s, 4s, 8s
@@ -191,7 +195,11 @@ def search_pubmed(query: str, max_results: int = 50000, use_cache: bool = True) 
     from .query_cache import QueryCache
     
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None
     
     # Check cache first
     if use_cache:
@@ -287,7 +295,7 @@ def search_pubmed(query: str, max_results: int = 50000, use_cache: bool = True) 
 def search_pubmed_by_dois(dois: List[str]) -> Dict[str, str]:
     """
     Search PubMed for papers by their DOIs and return mapping of DOI to PMID.
-    Uses batch searching for improved performance.
+    Searches DOIs individually to avoid HTTP 400 errors with batch queries.
     
     Args:
         dois: List of DOIs
@@ -296,38 +304,35 @@ def search_pubmed_by_dois(dois: List[str]) -> Dict[str, str]:
         Dictionary mapping DOI to PMID (only for papers found in PubMed)
     """
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None  # Use without API key (slower but functional)
     
     doi_to_pmid = {}
     not_found = []
     
-    print(f"Searching PubMed for {len(dois)} DOIs using batch search...")
+    print(f"Searching PubMed for {len(dois)} DOIs (individual searches)...")
     
-    # Process DOIs in batches for better performance
-    batch_size = 10  # Search multiple DOIs at once
-    
-    for batch_start in range(0, len(dois), batch_size):
-        batch_end = min(batch_start + batch_size, len(dois))
-        batch_dois = dois[batch_start:batch_end]
+    # Search each DOI individually to avoid query length issues
+    for i, doi in enumerate(dois):
+        if (i + 1) % 10 == 0:
+            print(f"  Processed {i + 1}/{len(dois)} DOIs...")
         
-        if (batch_start // batch_size + 1) % 10 == 0:
-            print(f"  Processed {batch_start}/{len(dois)} DOIs...")
+        # Search for single DOI (without field specifier to avoid 400 errors)
+        # PubMed will automatically match DOIs in the search
+        query = doi
         
-        # Create a combined query for all DOIs in the batch
-        # Use OR to search for multiple DOIs at once
-        query_parts = [f'"{doi}"[DOI]' for doi in batch_dois]
-        combined_query = " OR ".join(query_parts)
-        
-        # Search for all DOIs in the batch
         handle = safe_ncbi_call(
             Entrez.esearch,
             db="pubmed",
-            term=combined_query,
-            retmax=batch_size
+            term=query,
+            retmax=1
         )
         
         if not handle:
-            not_found.extend(batch_dois)
+            not_found.append(doi)
             continue
         
         try:
@@ -335,51 +340,19 @@ def search_pubmed_by_dois(dois: List[str]) -> Dict[str, str]:
             handle.close()
             
             if record["IdList"]:
-                # We found some papers, now fetch their metadata to match DOIs to PMIDs
-                pmids = record["IdList"]
-                
-                # Fetch metadata to get DOIs for each PMID
-                metadata_handle = safe_ncbi_call(Entrez.efetch, db="pubmed", id=",".join(pmids), retmode="xml")
-                if metadata_handle:
-                    try:
-                        metadata_records = Entrez.read(metadata_handle)
-                        metadata_handle.close()
-                        
-                        # Extract DOI-PMID mappings from metadata
-                        for article in metadata_records.get('PubmedArticle', []):
-                            pmid = str(article['MedlineCitation']['PMID'])
-                            pubmed_data = article['PubmedData']
-                            
-                            # Find DOI in article IDs
-                            for id_item in pubmed_data.get('ArticleIdList', []):
-                                id_str = str(id_item)
-                                id_type = id_item.attributes.get('IdType') if hasattr(id_item, 'attributes') else None
-                                if id_type and id_type.lower() == 'doi':
-                                    article_doi = id_str.lower().strip()
-                                    
-                                    # Check if this DOI is in our batch
-                                    for search_doi in batch_dois:
-                                        if search_doi.lower().strip() == article_doi:
-                                            doi_to_pmid[search_doi] = pmid
-                                            break
-                    except Exception as e:
-                        print(f"Error processing batch metadata: {e}")
-                        not_found.extend(batch_dois)
+                # Found the paper - get PMID
+                pmid = record["IdList"][0]
+                doi_to_pmid[doi] = pmid
             else:
-                not_found.extend(batch_dois)
+                not_found.append(doi)
                 
         except Exception as e:
-            print(f"Error processing DOI batch: {e}")
-            not_found.extend(batch_dois)
-    
-    # Find DOIs that weren't matched
-    matched_dois = set(doi_to_pmid.keys())
-    all_dois = set(dois)
-    not_found_set = all_dois - matched_dois
+            print(f"Error searching DOI {doi}: {e}")
+            not_found.append(doi)
     
     print(f"\nFound {len(doi_to_pmid)} papers in PubMed")
-    if not_found_set:
-        print(f"Not found in PubMed: {len(not_found_set)} DOIs")
+    if not_found:
+        print(f"Not found in PubMed: {len(not_found)} DOIs")
     
     return doi_to_pmid
 
@@ -399,7 +372,11 @@ def extract_pubmed_metadata_batch(pmids: List[str]) -> Dict[str, PaperMetadata]:
         return {}
     
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None
     
     # Join PMIDs with commas for batch fetch
     pmid_string = ",".join(pmids)
@@ -612,7 +589,11 @@ def extract_pubmed_metadata(pmid: str) -> Optional[PaperMetadata]:
         PaperMetadata object or None if extraction failed
     """
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None
     
     handle = safe_ncbi_call(Entrez.efetch, db="pubmed", id=pmid, retmode="xml")
     if handle is None:
@@ -896,7 +877,11 @@ def extract_pmc_fulltext(pmcid: str) -> Tuple[Optional[str], Optional[Dict[str, 
         mapping section names to their content
     """
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None
     
     # Normalize PMCID format
     pmcid_stripped = pmcid.replace("PMC", "") if pmcid.startswith("PMC") else pmcid
@@ -1167,7 +1152,11 @@ def extract_fulltext_by_doi(doi: str) -> Tuple[Optional[str], Optional[Dict[str,
         mapping section names to their content, or (None, None) if extraction failed
     """
     Entrez.email = ENTREZ_EMAIL
-    Entrez.api_key = ENTREZ_API_KEY
+    # Only set API key if it's not a placeholder/sample value
+    if ENTREZ_API_KEY and not ENTREZ_API_KEY.startswith('sample'):
+        Entrez.api_key = ENTREZ_API_KEY
+    else:
+        Entrez.api_key = None
     
     # First, search for the paper in PMC using the DOI
     handle = safe_ncbi_call(

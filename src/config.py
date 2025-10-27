@@ -3,14 +3,40 @@
 Configuration file for PubMed paper collection system
 """
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # NCBI/PubMed Configuration - Multiple credentials for load distribution
-NCBI_CREDENTIALS = [
-    {
-        "email": os.getenv("ENTREZ_EMAIL", "sample_email@sample.com"),
-        "api_key": os.getenv("ENTREZ_API_KEY", "sample_api_key")
-    }
-]
+# Load credentials from environment variables (ENTREZ_EMAIL_1, ENTREZ_API_KEY_1, etc.)
+def _load_credentials():
+    """Load all available credential pairs from environment variables"""
+    credentials = []
+    i = 1
+    while True:
+        email = os.getenv(f"ENTREZ_EMAIL_{i}")
+        api_key = os.getenv(f"ENTREZ_API_KEY_{i}")
+        
+        if not email or not api_key:
+            break
+            
+        credentials.append({
+            "email": email,
+            "api_key": api_key
+        })
+        i += 1
+    
+    # Fallback to single credential if numbered ones don't exist
+    if not credentials:
+        email = os.getenv("ENTREZ_EMAIL", "sample_email@sample.com")
+        api_key = os.getenv("ENTREZ_API_KEY", "sample_api_key")
+        credentials.append({"email": email, "api_key": api_key})
+    
+    return credentials
+
+NCBI_CREDENTIALS = _load_credentials()
+print(f"Loaded {len(NCBI_CREDENTIALS)} NCBI credential pair(s)")
 
 # Current credential index (rotates between accounts)
 _current_credential_index = 0

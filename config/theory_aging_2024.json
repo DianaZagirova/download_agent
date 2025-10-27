@@ -1,0 +1,13 @@
+{
+  "queries": [
+    "\"theory of aging\"[Title/Abstract] AND 2024[dp]"
+  ],
+  "queries_suffix": "",
+  "query_run_name": "theory_aging_2024",
+  "use_suffix": false,
+  "max_results": 10000,
+  "check_num": 10000,
+  "test_db": false,
+  "output_dir": null,
+  "description": "Search for papers with 'theory of aging' in title/abstract published in 2024"
+}

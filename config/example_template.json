@@ -1,0 +1,13 @@
+{
+  "queries": [
+    "your_query_here[Title/Abstract]"
+  ],
+  "queries_suffix": "",
+  "query_run_name": "your_run_name",
+  "use_suffix": false,
+  "max_results": 10000,
+  "check_num": 10000,
+  "test_db": false,
+  "output_dir": null,
+  "description": "Template config file - copy and modify for your needs"
+}

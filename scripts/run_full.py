@@ -6,10 +6,12 @@ Expected results: 46,351 papers
 Usage:
     python run_full.py --queries "query1" "query2" --queries-suffix "suffix" --query-run-name "run_name"
     python run_full.py --queries "(\"Aging/physiology\"[MAJR]) and (\"ageing\"[tiab] or \"aging\"[tiab])" --queries-suffix "AND (theory[tiab] OR theories[tiab])" --query-run-name "mesh_aging"
+    python run_full.py --config config/theory_aging_2024.json
 """
 import sys
 import os
 import argparse
+import json
 from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -69,16 +71,25 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Using command line arguments:
   python run_full.py --queries "(\"Aging/physiology\"[MAJR]) and (\"ageing\"[tiab] or \"aging\"[tiab])" --queries-suffix "AND (theory[tiab] OR theories[tiab])" --query-run-name "mesh_aging"
   
   python run_full.py --queries "query1" "query2" --queries-suffix "suffix" --query-run-name "custom_run"
+  
+  # Using config file:
+  python run_full.py --config config/theory_aging_2024.json
         """
+    )
+    
+    parser.add_argument(
+        '--config',
+        type=str,
+        help='Path to JSON config file with all parameters'
     )
     
     parser.add_argument(
         '--queries',
         nargs='+',
-        required=True,
         help='One or more search queries to execute'
     )
     
@@ -92,7 +103,6 @@ Examples:
     parser.add_argument(
         '--query-run-name',
         type=str,
-        required=True,
         help='Descriptive name for the query-based run'
     )
     
@@ -138,23 +148,49 @@ args = parse_arguments()
 # CONFIGURATION
 # ============================================================================
 
-# Use parsed arguments
-queries = args.queries
-QUERIES_SUFFIX = args.queries_suffix
-QUERY_RUN_NAME = args.query_run_name
-USE_SUFFIX = args.use_suffix
-CHECK_NUM = args.check_num
-MAX_RESULTS = args.max_results
-USE_TEST_DB = args.test_db
+# Load from config file if provided
+if args.config:
+    config_path = args.config
+    if not os.path.isabs(config_path):
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), config_path)
+    
+    print(f"Loading configuration from: {config_path}")
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    # Load all parameters from config
+    queries = config.get('queries', [])
+    QUERIES_SUFFIX = config.get('queries_suffix', '')
+    QUERY_RUN_NAME = config.get('query_run_name', 'unnamed_run')
+    USE_SUFFIX = config.get('use_suffix', False)
+    CHECK_NUM = config.get('check_num', 60000)
+    MAX_RESULTS = config.get('max_results', 60000)
+    USE_TEST_DB = config.get('test_db', False)
+    OUTPUT_DIR = config.get('output_dir', None)
+    
+    print(f"Loaded config: {json.dumps(config, indent=2)}")
+else:
+    # Use parsed arguments from command line
+    if not args.queries or not args.query_run_name:
+        print("ERROR: --queries and --query-run-name are required when not using --config")
+        sys.exit(1)
+    
+    queries = args.queries
+    QUERIES_SUFFIX = args.queries_suffix
+    QUERY_RUN_NAME = args.query_run_name
+    USE_SUFFIX = args.use_suffix
+    CHECK_NUM = args.check_num
+    MAX_RESULTS = args.max_results
+    USE_TEST_DB = args.test_db
+    OUTPUT_DIR = args.output_dir
 
 # Handle output directory - use test database if requested
 if USE_TEST_DB:
     # Create test-specific output directory
     base_output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'paper_collection_test')
-    OUTPUT_DIR = args.output_dir or base_output_dir
+    if not OUTPUT_DIR:
+        OUTPUT_DIR = base_output_dir
     print(f"Using TEST DATABASE: {OUTPUT_DIR}")
-else:
-    OUTPUT_DIR = args.output_dir
 
 # Print configuration
 print("Configuration:")

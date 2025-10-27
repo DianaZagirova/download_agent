@@ -13,22 +13,36 @@ from main import collect_papers_from_dois
 # ============================================================================
 
 # Option 1: Provide DOIs directly in the script
-# DOIS = [
-#     "10.3390/ijerph20031876",
-#     "10.1016/j.arr.2016.06.005",
-#     "10.1177/0894318417724459"
-# ]
+DOIS = [
+   '10.1007/BF02008340',
+ '10.1016/0014-4827(61)90192-6',
+ '10.1016/0531-5565(87)90010-6',
+ '10.1016/j.cell.2011.07.030',
+ '10.1016/j.cell.2024.01.013',
+ '10.1038/345458a0',
+ '10.1073/pnas.0509776102',
+ '10.1093/geronj/11.3.298',
+ '10.1155/2016/8426874',
+ '10.1186/1742-4933-1-1',
+ '10.14336/AD.2019.0820',
+ '10.18632/aging.100253',
+ '10.18632/oncoscience.545',
+ '10.20463/jenb.2017.0027',
+ '10.3389/fcell.2020.575645',
+ '10.3389/fphys.2021.724506',
+ '10.3389/fragi.2022.866718'
+]
 # DOIS = ['10.20463/jenb.2017.0027']
-
+DOI_FILE= ""
 # Option 2: Load DOIs from a file (one DOI per line)
-DOI_FILE = "data/dois_validation/dois_validation3.txt"
+# DOI_FILE = "data/dois_validation/dois_validation3.txt"
 # DOI_FILE=None
 # Custom output directory (optional)
 # Default: None (uses 'paper_collection/data')
 # Examples:
 #   - Relative path: 'doi_collection'
 #   - Absolute path: '/Users/diana/Documents/my_papers'
-OUTPUT_DIR = 'paper_collection_test'  # Set to custom path or leave as None for default
+OUTPUT_DIR = None  # Set to custom path or leave as None for default (paper_collection)
 
 # Threading configuration
 USE_THREADING = True  # Set to False for debugging
